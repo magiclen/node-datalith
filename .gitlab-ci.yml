@@ -1,0 +1,57 @@
+image: node:22-slim
+
+stages:
+  - Initialize Dependancies
+  - Test
+  - Publish
+
+init:
+  stage: Initialize Dependancies
+  before_script:
+    - npm i -g pnpm
+    - su node -c "pnpm config set store-dir .pnpm-store"
+  script:
+    - su node -c "pnpm i --frozen-lockfile --prefer-offline"
+  cache:
+    key: pnpm
+    paths:
+      - .pnpm-store
+  artifacts:
+    expire_in: 6 hours
+    when: on_success
+    paths:
+      - node_modules/
+
+build:
+  stage: Test
+  dependencies:
+    - init
+  script:
+    - su node -c "npm run build"
+
+lint:
+  stage: Test
+  dependencies:
+    - init
+  script:
+    - su node -c "npm run lint"
+
+test:
+  stage: Test
+  dependencies:
+    - init
+  script:
+    - su node -c "npm run test"
+
+publish:
+  stage: Publish
+  dependencies:
+    - init
+  only:
+    refs:
+      - tags
+    variables:
+      - $CI_COMMIT_TAG =~ /^v\d.*/
+  script:
+    - su node -c "npm set //$NPM_REGISTRY/:_authToken $NPM_TOKEN"
+    - su node -c "npm publish"
