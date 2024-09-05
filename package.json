@@ -1,7 +1,7 @@
 {
-    "name": "ts-datalith",
+    "name": "node-datalith",
     "version": "0.1.0",
-    "description": "Use Datalith in JavaScript/TypeScript (Node.js)",
+    "description": "Use Datalith in Node.js.",
     "private": false,
     "type": "module",
     "exports": "./lib/lib.js",
