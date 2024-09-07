@@ -1,4 +1,5 @@
-# Project Name
+Datalith
+==========
 
 A brief description of your project.
 

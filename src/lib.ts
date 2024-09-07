@@ -1,119 +1,173 @@
 import { Readable } from "node:stream";
 
-import {
-    DatalithGetError, DatalithGetErrorKind, DatalithPutError, DatalithPutErrorKind,
-} from "./errors.js";
-import { createTimeoutReadableStream, nodeStreamReadableToWebReadableStream } from "./functions.js";
+import { nodeReadableToWebReadableStream, timeoutFetch } from "fetch-helper-x";
 
-export { nodeStreamReadableToWebReadableStream };
+import { BadRequestError, PayloadTooLargeError } from "./errors.js";
+import { File } from "./file.js";
+import { Image, ImageSize } from "./image.js";
+import { Resource } from "./resource.js";
 
-export class Resource {
-    constructor(
-        public readonly id: string,
-        public readonly createdAt: Date,
-        public readonly fileType: string,
-        public readonly fileSize: number,
-        public readonly fileName: string,
-        public readonly isTemporary: boolean,
-    ) {
-        // do nothing
-    }
+export * from "./file.js";
+export * from "./image.js";
+export * from "./resource.js";
+
+const DEFAULT_REQUEST_TIMEOUT = 24 * 60 * 60 * 1000;
+const DEFAULT_IDLE_TIMEOUT = 30 * 1000;
+const DEFAULT_DELETE_REQUEST_TIMEOUT = DEFAULT_IDLE_TIMEOUT;
+
+export interface WithBodyTimeoutOptions {
+    /**
+     * The maximum time allowed for the request to complete, in milliseconds.
+     *
+     * @default 86400000 (1 day)
+     */
+    reqeustTimeout?: number | null;
+    /**
+     * The maximum time the connection can remain idle before being closed, in milliseconds.
+     *
+     * @default 30000 (30 seconds)
+     */
+    idleTimeout?: number | null;
 }
 
-export interface ResourcePutOptions {
+export interface ResourcePutOptions extends WithBodyTimeoutOptions {
+    /**
+     * The file content as a readable stream.
+     *
+     * Can be either a `ReadableStream` (for web) or a Node.js `Readable` stream.
+     */
     fileStream: ReadableStream | Readable;
     /**
-     * @default undefined provided by Datalith
+     * The name of the file, including its extension (e.g., `"file.txt"`).
+     *
+     * If not provided (`undefined`), Datalith will automatically determine the file name.
+     *
+     * @default undefined
      */
     fileName?: string;
     /**
-     * @default undefined provided by Datalith
+     * The MIME type of the file (e.g., `"image/jpeg"`, `"application/pdf"`).
+     *
+     * If not provided (`undefined`), Datalith will automatically determine the file type.
+     *
+     * @default undefined
      */
     fileType?: string;
     /**
-     * @default undefined provided by Datalith (should be `false`)
+     * Indicates if the file is temporary. If `true`, the file may be deleted after a short period and can use the `getRecource` method to retrieve it only once.
+     *
+     * If not provided (`undefined`), Datalith will decide whether the file is temporary, defaulting to `false`.
+     *
+     * @default undefined (Datalith defaults to `false`)
      */
     temporary?: boolean;
+}
+
+export interface ImagePutOptions extends WithBodyTimeoutOptions {
     /**
-     * In milliseconds.
+     * The file content as a readable stream.
      *
-     * @default 15000
+     * Can be either a `ReadableStream` (for web) or a Node.js `Readable` stream.
      */
-    timeout?: number;
-}
-
-export class Image {
-    constructor(
-        public readonly id: string,
-        public readonly createdAt: Date,
-        public readonly imageWidth: number,
-        public readonly imageHeight: number,
-        public readonly imageStem: string,
-    ) {
-        // do nothing
-    }
-}
-
-export interface ImagePutOptions {
     fileStream: ReadableStream | Readable;
     /**
-     * @default undefined provided by Datalith
+     * The name of the image file, including its extension (e.g., `"image.jpg"`).
+     *
+     * If not provided (`undefined`), Datalith will automatically determine the file name.
+     *
+     * @default undefined
      */
     fileName?: string;
     /**
-     * @default undefined Datalith will not shrink the image by width
+     * The maximum width of the image in pixels.
+     *
+     * If not provided (`undefined`), Datalith will not resize the image by width.
+     *
+     * @default undefined
      */
     maxWidth?: number;
     /**
-     * @default undefined Datalith will not shrink the image by height
+     * The maximum height of the image in pixels.
+     *
+     * If not provided (`undefined`), Datalith will not resize the image by height.
+     *
+     * @default undefined
      */
     maxHeight?: number;
     /**
+     * The aspect ratio for cropping the image (e.g., `"1:1"`).
+     *
+     * If not provided (`undefined`), Datalith will not crop the image.
+     *
+     * @default undefined
+     *
      * @example "1:1"
-     * @default undefined Datalith will not crop the image
      */
     centerCrop?: string;
     /**
-     * @default undefined provided by Datalith (should be `true`)
+     * Indicates whether to save the original image file.
+     *
+     * If not provided (`undefined`), Datalith will automatically decide whether to save the original file, with the default being `true`.
+     *
+     * @default undefined (Datalith defaults to `true`)
      */
     saveOriginalFile?: boolean;
     /**
-     * In milliseconds.
+     * The maximum time allowed for the request to complete, in milliseconds.
      *
-     * @default 15000
+     * @default 86400000 (1 day)
      */
-    timeout?: number;
+    reqeustTimeout?: number | null;
+    /**
+     * The maximum time the connection can remain idle before being closed, in milliseconds.
+     *
+     * @default 30000 (30 seconds)
+     */
+    idleTimeout?: number | null;
 }
 
-export interface ImageGetOptions {
+export type ResourceGetOptions = WithBodyTimeoutOptions;
+
+export interface ImageGetOptions extends WithBodyTimeoutOptions {
     /**
-     * @default undefined provided by Datalith (should be `1x`)
+     * The desired resolution of the image.
+     *
+     * Can be a scaling factor from `"1x"`, `"2x"`, `"3x"`, ..., etc, or `"original"` for the original resolution.
+     *
+     * If not provided (`undefined`), Datalith will automatically set the resolution to `1x`.
+     *
+     * @default undefined (Datalith defaults to `"1x"`)
      */
     resolution?: `${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}x` | "original";
     /**
-     * @default undefined provided by Datalith (should be `false`)
+     * Whether to use a fallback image (in PNG/JPEG format instead of WebP).
+     *
+     * If not provided (`undefined`), Datalith will default to `false` and will not use a fallback image.
+     *
+     * @default undefined (Datalith defaults to `false`)
      */
     fallback?: boolean;
     /**
-     * In milliseconds.
+     * The maximum time allowed for the request to complete, in milliseconds.
      *
-     * @default 15000
+     * @default 86400000 (1 day)
      */
-    timeout?: number;
+    reqeustTimeout?: number | null;
+    /**
+     * The maximum time the connection can remain idle before being closed, in milliseconds.
+     *
+     * @default 30000 (30 seconds)
+     */
+    idleTimeout?: number | null;
 }
 
-export class File {
-    constructor(
-        public readonly etag: string,
-        public readonly date: Date,
-        public readonly contentType: string,
-        public readonly contentLength: number,
-        public readonly data: ReadableStream,
-        public readonly imageWidth?: number | null,
-        public readonly imageHeight?: number | null,
-    ) {
-        // do nothing
-    }
+export interface DeleteOptions {
+    /**
+     * The maximum time allowed for the request to complete, in milliseconds.
+     *
+     * @default 30000 (30 seconds)
+     */
+    reqeustTimeout?: number | null;
 }
 
 export * from "./errors.js";
@@ -142,18 +196,18 @@ export class Datalith {
     /**
      * Input a resource into Datalith.
      *
-     * @throws {DatalithPutError}
+     * @throws {BadRequestError}
+     * @throws {PayloadTooLargeError}
      * @throws {Error}
      */
     public async putResource(options: ResourcePutOptions): Promise<Resource> {
         let fileStream: ReadableStream;
 
         if (options.fileStream instanceof Readable) {
-            fileStream = nodeStreamReadableToWebReadableStream(options.fileStream);
+            fileStream = nodeReadableToWebReadableStream(options.fileStream);
         } else {
             fileStream = options.fileStream;
         }
-
 
         const url = new URL(this._apiOperate);
         const searchParams = url.searchParams;
@@ -171,60 +225,59 @@ export class Datalith {
             searchParams.append("temporary", options.temporary ? "1" : "0");
         }
 
-        const { timeoutReadableStream, signal } = createTimeoutReadableStream(options.timeout, fileStream);
+        const response = await timeoutFetch(this._apiOperate.toString(), {
+            method: "PUT",
+            body: fileStream,
+            requestTimeout: typeof options.reqeustTimeout !== "undefined" ? options.reqeustTimeout : DEFAULT_REQUEST_TIMEOUT,
+            idleTimeout: typeof options.idleTimeout !== "undefined" ? options.idleTimeout : DEFAULT_IDLE_TIMEOUT,
+            duplex: "half",
+        });
+
+        switch (response.status) {
+            case 200:
+                break;
+            case 400:
+                await response.cancelBody();
+                throw new BadRequestError();
+            case 413:
+                await response.cancelBody();
+                throw new PayloadTooLargeError();
+            default:
+                await response.cancelBody();
+                throw new Error("unknown error");
+        }
+
+        let json;
 
         try {
-            const response = await fetch(this._apiOperate.toString(), {
-                method: "PUT",
-                signal,
-                body: timeoutReadableStream,
-                duplex: "half",
-            } as RequestInit);
-
-            switch (response.status) {
-                case 200:
-                    break;
-                case 400:
-                    throw new DatalithPutError(DatalithPutErrorKind.BadRequest);
-                case 413:
-                    throw new DatalithPutError(DatalithPutErrorKind.PayloadTooLarge);
-                default:
-                    throw new Error("unknown error");
-            }
-
-            const json = await response.json() as {
+            json = await response.json<{
                 id: string,
                 created_at: string,
                 file_type: string,
                 file_size: number,
                 file_name: string,
                 is_temporary: boolean,
-            };
-
-            return new Resource(json.id, new Date(json.created_at), json.file_type, json.file_size, json.file_name, json.is_temporary);
+            }>();
         } catch (error) {
-            if (error instanceof Error) {
-                switch (error.name) {
-                    case "TimeoutError":
-                        throw new DatalithPutError(DatalithPutErrorKind.Timeout);
-                }
-            }
-
+            await response.cancelBody();
             throw error;
         }
+
+        return new Resource(json.id, new Date(json.created_at), json.file_type, json.file_size, json.file_name, json.is_temporary);
     }
 
     /**
      * Input a image into Datalith.
      *
-     * @throws {DatalithPutError}
+     * @throws {BadRequestError}
+     * @throws {PayloadTooLargeError}
      * @throws {Error}
      */
     public async putImage(options: ImagePutOptions): Promise<Image> {
         let fileStream: ReadableStream;
 
         if (options.fileStream instanceof Readable) {
-            fileStream = nodeStreamReadableToWebReadableStream(options.fileStream);
+            fileStream = nodeReadableToWebReadableStream(options.fileStream);
         } else {
             fileStream = options.fileStream;
         }
@@ -252,104 +305,96 @@ export class Datalith {
             searchParams.append("save_original_file", options.saveOriginalFile ? "1" : "0");
         }
 
-        const { timeoutReadableStream, signal } = createTimeoutReadableStream(options.timeout, fileStream, true);
+        const response = await timeoutFetch(this._apiOperateImage.toString(), {
+            method: "PUT",
+            body: fileStream,
+            requestTimeout: typeof options.reqeustTimeout !== "undefined" ? options.reqeustTimeout : DEFAULT_REQUEST_TIMEOUT,
+            idleTimeout: typeof options.idleTimeout !== "undefined" ? options.idleTimeout : DEFAULT_IDLE_TIMEOUT,
+            duplex: "half",
+        });
+
+        switch (response.status) {
+            case 200:
+                break;
+            case 400:
+                await response.cancelBody();
+                throw new BadRequestError();
+            case 413:
+                await response.cancelBody();
+                throw new PayloadTooLargeError();
+            default:
+                await response.cancelBody();
+                throw new Error("unknown error");
+        }
+
+        let json;
 
         try {
-            const response = await fetch(this._apiOperateImage.toString(), {
-                method: "PUT",
-                signal,
-                body: timeoutReadableStream,
-                duplex: "half",
-            } as RequestInit);
-
-            switch (response.status) {
-                case 200:
-                    break;
-                case 400:
-                    throw new DatalithPutError(DatalithPutErrorKind.BadRequest);
-                case 413:
-                    throw new DatalithPutError(DatalithPutErrorKind.PayloadTooLarge);
-                default:
-                    throw new Error("unknown error");
-            }
-
-            const json = await response.json() as {
+            json = await response.json<{
                 id: string,
                 created_at: string,
                 image_width: number,
                 image_height: number,
                 image_stem: string,
-            };
-
-            return new Image(json.id, new Date(json.created_at), json.image_width, json.image_height, json.image_stem);
+            }>();
         } catch (error) {
-            if (error instanceof Error) {
-                switch (error.name) {
-                    case "TimeoutError":
-                        throw new DatalithPutError(DatalithPutErrorKind.Timeout);
-                }
-            }
-
+            await response.cancelBody();
             throw error;
         }
+
+        return new Image(json.id, new Date(json.created_at), json.image_stem, {
+            width: json.image_width,
+            height: json.image_height,
+        });
     }
 
     /**
      * Get a resource from Datalith.
      *
-     * @params {number} [timeout = 15000] In milliseconds.
-     * @throws {DatalithGetError}
+     * @throws {BadRequestError}
      * @throws {Error}
      */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    public async getResource(id: string, _timeout?: number): Promise<File | null> {
+    public async getResource(id: string, options: ResourceGetOptions = {}): Promise<File | null> {
         const url = new URL(id, this._apiFetch);
 
-        try {
-            // TODO timeout
+        const response = await timeoutFetch(url, {
+            method: "GET",
+            requestTimeout: typeof options.reqeustTimeout !== "undefined" ? options.reqeustTimeout : DEFAULT_REQUEST_TIMEOUT,
+            idleTimeout: typeof options.idleTimeout !== "undefined" ? options.idleTimeout : DEFAULT_IDLE_TIMEOUT,
+        });
 
-            const response = await fetch(url, { method: "GET" });
+        switch (response.status) {
+            case 200:
+            {
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const etag = response.headers.get("etag")!;
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const date = new Date(response.headers.get("date")!);
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const contentType = response.headers.get("content-type")!;
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const contentLength = parseInt(response.headers.get("content-length")!);
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const body = response.body!;
 
-            switch (response.status) {
-                case 200:
-                {
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const etag = response.headers.get("etag")!;
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const date = new Date(response.headers.get("date")!);
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const contentType = response.headers.get("content-type")!;
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const contentLength = parseInt(response.headers.get("content-length")!);
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const body = response.body!;
-            
-                    return new File(etag, date, contentType, contentLength, body);
-                }
-                case 400:
-                    throw new DatalithGetError(DatalithGetErrorKind.BadRequest);
-                case 404:
-                    return null;
-                default:
-                    throw new Error("unknown error");
+                return new File(response, etag, date, contentType, contentLength, body);
             }
-        } catch (error) {
-            if (error instanceof Error) {
-                switch (error.name) {
-                    case "TimeoutError":
-                        throw new DatalithGetError(DatalithGetErrorKind.Timeout);
-                }
-            }
-
-            throw error;
+            case 400:
+                await response.cancelBody();
+                throw new BadRequestError();
+            case 404:
+                await response.cancelBody();
+                return null;
+            default:
+                await response.cancelBody();
+                throw new Error("unknown error");
         }
     }
 
     /**
      * Get an image from Datalith.
      *
-     * @params {number} [timeout = 15000] In milliseconds.
-     * @throws {DatalithGetError}
+     * @throws {BadRequestError}
      * @throws {Error}
      */
     public async getImage(id: string, options: ImageGetOptions = {}): Promise<File | null> {
@@ -364,56 +409,103 @@ export class Datalith {
             searchParams.append("fallback", options.fallback ? "1" : "0");
         }
 
+        const response = await timeoutFetch(url, {
+            method: "GET",
+            requestTimeout: typeof options.reqeustTimeout !== "undefined" ? options.reqeustTimeout : DEFAULT_REQUEST_TIMEOUT,
+            idleTimeout: typeof options.idleTimeout !== "undefined" ? options.idleTimeout : DEFAULT_IDLE_TIMEOUT,
+        });
+
+        switch (response.status) {
+            case 200:
+            {
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const etag = response.headers.get("etag")!;
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const date = new Date(response.headers.get("date")!);
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const contentType = response.headers.get("content-type")!;
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const contentLength = parseInt(response.headers.get("content-length")!);
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const body = response.body!;
+
+                const getNullableNumber = (fieldName: string): number | null => {
+                    const s = response.headers.get(fieldName);
+
+                    if (s === null) {
+                        return null;
+                    }
+
+                    return parseInt(s);
+                };
+
+                const imageWidth = getNullableNumber("x-image-width");
+                const imageHeight = getNullableNumber("x-image-height");
+
+                let imageSize: ImageSize | null = null;
+
+                if (imageWidth !== null && imageHeight !== null) {
+                    imageSize = {
+                        width: imageWidth,
+                        height: imageHeight,
+                    };
+                }
+
+                return new File(response, etag, date, contentType, contentLength, body, imageSize);
+            }
+            case 400:
+                await response.cancelBody();
+                throw new BadRequestError();
+            case 404:
+                await response.cancelBody();
+                return null;
+            default:
+                await response.cancelBody();
+                throw new Error("unknown error");
+        }
+    }
+
+    /**
+     * Delete a resource from Datalith.
+     *
+     * @throws {BadRequestError}
+     * @throws {Error}
+     */
+    public async deleteResource(id: string, options: DeleteOptions = {}): Promise<boolean> {
+        return this.delete(id, this._apiOperate, options);
+    }
+
+    /**
+     * Delete an image from Datalith.
+     *
+     * @throws {BadRequestError}
+     * @throws {Error}
+     */
+    public deleteImage(id: string, options: DeleteOptions = {}): Promise<boolean> {
+        return this.delete(id, this._apiOperateImage, options);
+    }
+
+    async delete(id: string, apiURL: URL, options: DeleteOptions = {}): Promise<boolean> {
+        const url = new URL(id, apiURL);
+
+        const response = await timeoutFetch(url, {
+            method: "DELETE",
+            requestTimeout: typeof options.reqeustTimeout !== "undefined" ? options.reqeustTimeout : DEFAULT_DELETE_REQUEST_TIMEOUT,
+        });
+
         try {
-            // TODO timeout
-
-            const response = await fetch(url, { method: "GET" });
-
             switch (response.status) {
                 case 200:
-                {
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const etag = response.headers.get("etag")!;
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const date = new Date(response.headers.get("date")!);
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const contentType = response.headers.get("content-type")!;
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const contentLength = parseInt(response.headers.get("content-length")!);
-                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                    const body = response.body!;
-
-                    const getNullableNumber = (fieldName: string): number | null => {
-                        const s = response.headers.get(fieldName);
-
-                        if (s === null) {
-                            return null;
-                        }
-
-                        return parseInt(s);
-                    };
-
-                    const imageWidth = getNullableNumber("x-image-width");
-                    const imageHeight = getNullableNumber("x-image-height");
-            
-                    return new File(etag, date, contentType, contentLength, body, imageWidth, imageHeight);
-                }
+                    return true;
                 case 400:
-                    throw new DatalithGetError(DatalithGetErrorKind.BadRequest);
+                    throw new BadRequestError();
                 case 404:
-                    return null;
+                    return false;
                 default:
                     throw new Error("unknown error");
             }
-        } catch (error) {
-            if (error instanceof Error) {
-                switch (error.name) {
-                    case "TimeoutError":
-                        throw new DatalithGetError(DatalithGetErrorKind.Timeout);
-                }
-            }
-
-            throw error;
+        } finally {
+            await response.cancelBody();
         }
     }
 }

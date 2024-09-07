@@ -2,7 +2,6 @@
     "name": "node-datalith",
     "version": "0.0.1",
     "description": "Use Datalith in Node.js.",
-    "private": false,
     "type": "module",
     "exports": "./lib/lib.js",
     "types": "./lib/lib.d.ts",
@@ -10,7 +9,7 @@
         "lib"
     ],
     "engines": {
-        "node": ">=18"
+        "node": ">=20"
     },
     "scripts": {
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
@@ -25,9 +24,26 @@
         "prepack": "npm run build",
         "prepublishOnly": "npm run lint && npm run test"
     },
-    "license": "UNLICENSED",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/magiclen/node-datalith.git"
+    },
+    "keywords": [
+        "http",
+        "fetch",
+        "request",
+        "timeout",
+        "retry"
+    ],
+    "author": "Magic Len",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/magiclen/node-datalith/issues"
+    },
+    "homepage": "https://magiclen.org/datalith/",
     "dependencies": {
-        "@types/node": "^22.5.4"
+        "@types/node": "^22.5.4",
+        "fetch-helper-x": "^0.1.4"
     },
     "devDependencies": {
         "@types/jest": "^29.5.12",

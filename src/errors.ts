@@ -1,26 +1,15 @@
-export enum DatalithPutErrorKind {
-    BadRequest = "BadRequest",
-    Timeout = "Timeout",
-    PayloadTooLarge = "PayloadTooLarge",
-}
-
-export class DatalithPutError extends Error {
-    public constructor(public readonly kind: DatalithPutErrorKind) {
-        super(kind);
+export class BadRequestError extends Error {
+    public constructor() {
+        super("BadRequest");
         
-        this.name = "DatalithUploadError";
+        this.name = "BadRequestError";
     }
 }
 
-export enum DatalithGetErrorKind {
-    BadRequest = "BadRequest",
-    Timeout = "Timeout",
-}
-
-export class DatalithGetError extends Error {
-    public constructor(public readonly kind: DatalithGetErrorKind) {
-        super(kind);
+export class PayloadTooLargeError extends Error {
+    public constructor() {
+        super("PayloadTooLarge");
         
-        this.name = "DatalithGetError";
+        this.name = "PayloadTooLargeError";
     }
 }
