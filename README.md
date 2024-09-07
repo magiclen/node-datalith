@@ -1,28 +1,37 @@
-Datalith
+Datalith for Node.js
 ==========
 
-A brief description of your project.
+[![CI](https://github.com/magiclen/node-datalith/actions/workflows/ci.yml/badge.svg)](https://github.com/magiclen/node-datalith/actions/workflows/ci.yml)
 
-## Table of Contents
-
-- [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Installation
-
-Instructions on how to install and set up your project.
+[Datalith](https://github.com/magiclen/datalith) is a file management system powered by SQLite for metadata storage and the file system for file storage. This library can help you conmunicate with Datalith in Node.js.
 
 ## Usage
 
-Instructions on how to use your project and any relevant examples.
+```typescript
+import { createReadStream } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { buffer } from "node:stream/consumers";
 
-## Contributing
+import { Datalith } from "node-datalith";
 
-Guidelines on how to contribute to your project and how others can get involved.
+const API_PREFIX = "http://127.0.0.1:1111";
+const FILE_PATH = "tests/data/image.png";
+
+const datalith = new Datalith(API_PREFIX);
+
+const resource = await datalith.putResource({ fileStream: createReadStream(FILE_PATH) });
+
+const file = await datalith.getResource(resource.id));
+
+const data = await buffer(file.data);
+
+const image = await datalith.putImage({ fileStream: createReadStream(FILE_PATH), maxWidth: 128 });
+
+const originalImageFile = await datalith.getImage(image.id, { resolution: "original" });
+
+const thumbnailImageFile = await datalith.getImage(image.id, { resolution: "1x" });
+```
 
 ## License
 
-Information about the license under which your project is distributed.
-
+[MIT](LICENSE)

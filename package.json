@@ -1,7 +1,7 @@
 {
     "name": "node-datalith",
     "version": "0.0.1",
-    "description": "Use Datalith in Node.js.",
+    "description": "Datalith is a file management system powered by SQLite for metadata storage and the file system for file storage. This library can help you conmunicate with Datalith in Node.js.",
     "type": "module",
     "exports": "./lib/lib.js",
     "types": "./lib/lib.d.ts",
