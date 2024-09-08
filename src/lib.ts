@@ -54,6 +54,16 @@ export interface ResourcePutOptions extends WithBodyTimeoutOptions {
      */
     fileType?: string;
     /**
+     * The file size.
+     *
+     * If not provided (`undefined`), Datalith will not be aware of the correct file size, which may result in the file being incomplete.
+     *
+     * If you're unsure about the file size, you can set it to the maximum file size you want it to be.
+     *
+     * @default undefined
+     */
+    fileSize?: number;
+    /**
      * Indicates if the file is temporary. If `true`, the file may be deleted after a short period and can use the `getRecource` method to retrieve it only once.
      *
      * If not provided (`undefined`), Datalith will decide whether the file is temporary, defaulting to `false`.
@@ -78,6 +88,16 @@ export interface ImagePutOptions extends WithBodyTimeoutOptions {
      * @default undefined
      */
     fileName?: string;
+    /**
+     * The file size.
+     *
+     * If not provided (`undefined`), Datalith will not be aware of the correct file size, which may result in the file being incomplete.
+     *
+     * If you're unsure about the file size, you can set it to the maximum file size you want it to be.
+     *
+     * @default undefined
+     */
+    fileSize?: number;
     /**
      * The maximum width of the image in pixels.
      *
@@ -225,32 +245,34 @@ export class Datalith {
             searchParams.append("temporary", options.temporary ? "1" : "0");
         }
 
+        const headers: Record<string, string> = {};
+
+        if (typeof options.fileSize !== "undefined") {
+            headers["x-file-length"] = options.fileSize.toString();
+        }
+
         const response = await timeoutFetch(this._apiOperate.toString(), {
             method: "PUT",
+            headers,
             body: fileStream,
             requestTimeout: typeof options.reqeustTimeout !== "undefined" ? options.reqeustTimeout : DEFAULT_REQUEST_TIMEOUT,
             idleTimeout: typeof options.idleTimeout !== "undefined" ? options.idleTimeout : DEFAULT_IDLE_TIMEOUT,
             duplex: "half",
         });
 
-        switch (response.status) {
-            case 200:
-                break;
-            case 400:
-                await response.cancelBody();
-                throw new BadRequestError();
-            case 413:
-                await response.cancelBody();
-                throw new PayloadTooLargeError();
-            default:
-                await response.cancelBody();
-                throw new Error("unknown error");
-        }
-
-        let json;
-
         try {
-            json = await response.json<{
+            switch (response.status) {
+                case 200:
+                    break;
+                case 400:
+                    throw new BadRequestError();
+                case 413:
+                    throw new PayloadTooLargeError();
+                default:
+                    throw new Error("unknown error");
+            }
+
+            const json = await response.json<{
                 id: string,
                 created_at: string,
                 file_type: string,
@@ -258,12 +280,12 @@ export class Datalith {
                 file_name: string,
                 is_temporary: boolean,
             }>();
+
+            return new Resource(json.id, new Date(json.created_at), json.file_type, json.file_size, json.file_name, json.is_temporary);
         } catch (error) {
             await response.cancelBody();
             throw error;
         }
-
-        return new Resource(json.id, new Date(json.created_at), json.file_type, json.file_size, json.file_name, json.is_temporary);
     }
 
     /**
@@ -304,48 +326,50 @@ export class Datalith {
         if (typeof options.saveOriginalFile !== "undefined") {
             searchParams.append("save_original_file", options.saveOriginalFile ? "1" : "0");
         }
+        
+        const headers: Record<string, string> = {};
+
+        if (typeof options.fileSize !== "undefined") {
+            headers["x-file-length"] = options.fileSize.toString();
+        }
 
         const response = await timeoutFetch(this._apiOperateImage.toString(), {
             method: "PUT",
+            headers,
             body: fileStream,
             requestTimeout: typeof options.reqeustTimeout !== "undefined" ? options.reqeustTimeout : DEFAULT_REQUEST_TIMEOUT,
             idleTimeout: typeof options.idleTimeout !== "undefined" ? options.idleTimeout : DEFAULT_IDLE_TIMEOUT,
             duplex: "half",
         });
 
-        switch (response.status) {
-            case 200:
-                break;
-            case 400:
-                await response.cancelBody();
-                throw new BadRequestError();
-            case 413:
-                await response.cancelBody();
-                throw new PayloadTooLargeError();
-            default:
-                await response.cancelBody();
-                throw new Error("unknown error");
-        }
-
-        let json;
-
         try {
-            json = await response.json<{
+            switch (response.status) {
+                case 200:
+                    break;
+                case 400:
+                    throw new BadRequestError();
+                case 413:
+                    throw new PayloadTooLargeError();
+                default:
+                    throw new Error("unknown error");
+            }
+
+            const json = await response.json<{
                 id: string,
                 created_at: string,
                 image_width: number,
                 image_height: number,
                 image_stem: string,
             }>();
+
+            return new Image(json.id, new Date(json.created_at), json.image_stem, {
+                width: json.image_width,
+                height: json.image_height,
+            });
         } catch (error) {
             await response.cancelBody();
             throw error;
         }
-
-        return new Image(json.id, new Date(json.created_at), json.image_stem, {
-            width: json.image_width,
-            height: json.image_height,
-        });
     }
 
     /**

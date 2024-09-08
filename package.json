@@ -43,7 +43,7 @@
     "homepage": "https://magiclen.org/datalith/",
     "dependencies": {
         "@types/node": "^22.5.4",
-        "fetch-helper-x": "^0.1.4"
+        "fetch-helper-x": "^0.1.5"
     },
     "devDependencies": {
         "@types/jest": "^29.5.12",

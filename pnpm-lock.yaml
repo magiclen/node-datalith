@@ -12,8 +12,8 @@ importers:
         specifier: ^22.5.4
         version: 22.5.4
       fetch-helper-x:
-        specifier: ^0.1.4
-        version: 0.1.4
+        specifier: ^0.1.5
+        version: 0.1.5
     devDependencies:
       '@types/jest':
         specifier: ^29.5.12
@@ -961,8 +961,8 @@ packages:
   fb-watchman@2.0.2:
     resolution: {integrity: sha512-p5161BqbuCaSnB8jIbzQHOlpgsPmK5rJVDfDKO91Axs5NC1uu3HRQm6wt9cd9/+GtQQIO53JdGXXoyDpTAsgYA==}
 
-  fetch-helper-x@0.1.4:
-    resolution: {integrity: sha512-hQWWkML4398bkPAgE1d7kx1LffbYKE/z4RZkhL8DM/hoBRojv9KmCzv0FR9vjm3+mA2pMnQ7ddy5GLEsIp1Whw==}
+  fetch-helper-x@0.1.5:
+    resolution: {integrity: sha512-WyA3lt08+t8o4ZRz47D9iAZd2ZZ9XKXCnD2LoDmI/MQUg/ZXti9sYqG/h9fgVVkGYUV1KYWonMV4IEMrGRkFKA==}
     engines: {node: '>=20'}
 
   file-entry-cache@6.0.1:
@@ -3250,7 +3250,7 @@ snapshots:
     dependencies:
       bser: 2.1.1
 
-  fetch-helper-x@0.1.4: {}
+  fetch-helper-x@0.1.5: {}
 
   file-entry-cache@6.0.1:
     dependencies:
