@@ -2,7 +2,7 @@ import { Readable } from "node:stream";
 
 import { nodeReadableToWebReadableStream, timeoutFetch } from "fetch-helper-x";
 
-import { BadRequestError, PayloadTooLargeError } from "./errors.js";
+import { BadRequestError, NotFoundError, PayloadTooLargeError } from "./errors.js";
 import { File } from "./file.js";
 import { Image, ImageSize } from "./image.js";
 import { Resource } from "./resource.js";
@@ -530,6 +530,66 @@ export class Datalith {
             }
         } finally {
             await response.cancelBody();
+        }
+    }
+
+    /**
+     * Convert a resource into an image.
+     *
+     * @throws {NotFoundError}
+     * @throws {BadRequestError}
+     * @throws {Error}
+     */
+    public async convertResourceToImage(id: string, options: DeleteOptions & Pick<ImagePutOptions, "maxWidth" | "maxHeight" | "centerCrop">): Promise<Image> {
+        const url = new URL(id, this._apiOperate);
+        const searchParams = url.searchParams;
+
+        searchParams.append("convert-image", "");
+
+        if (typeof options.maxWidth !== "undefined") {
+            searchParams.append("max_width", options.maxWidth.toString());
+        }
+
+        if (typeof options.maxHeight !== "undefined") {
+            searchParams.append("max_height", options.maxHeight.toString());
+        }
+
+        if (typeof options.centerCrop !== "undefined") {
+            searchParams.append("center_crop", options.centerCrop);
+        }
+
+        const response = await timeoutFetch(url, {
+            method: "DELETE",
+            requestTimeout: typeof options.reqeustTimeout !== "undefined" ? options.reqeustTimeout : DEFAULT_DELETE_REQUEST_TIMEOUT,
+        });
+
+        try {
+            switch (response.status) {
+                case 200:
+                    break;
+                case 400:
+                    throw new BadRequestError();
+                case 404:
+                    throw new NotFoundError();
+                default:
+                    throw new Error("unknown error");
+            }
+
+            const json = await response.json<{
+                id: string,
+                created_at: string,
+                image_width: number,
+                image_height: number,
+                image_stem: string,
+            }>();
+
+            return new Image(json.id, new Date(json.created_at), json.image_stem, {
+                width: json.image_width,
+                height: json.image_height,
+            });
+        } catch (error) {
+            await response.cancelBody();
+            throw error;
         }
     }
 }

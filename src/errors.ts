@@ -6,6 +6,14 @@ export class BadRequestError extends Error {
     }
 }
 
+export class NotFoundError extends Error {
+    public constructor() {
+        super("NotFound");
+        
+        this.name = "NotFoundError";
+    }
+}
+
 export class PayloadTooLargeError extends Error {
     public constructor() {
         super("PayloadTooLarge");

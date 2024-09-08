@@ -100,3 +100,15 @@ describe("Image", () => {
         expect(await datalith.deleteImage(image.id)).toBe(false);
     }, 60000);
 });
+
+describe("Resource To Image", () => {
+    it("should success", async () => {
+        const datalith = new Datalith(API_PREFIX);
+
+        const resource = await datalith.putResource({ fileStream: createReadStream(FILE_PATH) });
+        const image = await datalith.convertResourceToImage(resource.id, { maxWidth: 128 });
+
+        expect(await datalith.deleteResource(resource.id)).toBe(false);
+        expect(await datalith.deleteImage(image.id)).toBe(true);
+    });
+});
