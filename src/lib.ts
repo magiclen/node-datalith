@@ -593,3 +593,17 @@ export class Datalith {
         }
     }
 }
+
+/**
+ * Validates if the input string is a valid center crop string (in the format of `"<float>:<float>"`).
+ *
+ * @param {string}
+ * @returns {boolean}
+ */
+export const validateCenterCrop = (centerCrop?: string): boolean => {
+    if (typeof centerCrop === "undefined") {
+        return true;
+    }
+
+    return (/^-?\d+\.?\d*:-?\d+\.?\d*$/).test(centerCrop);
+};
