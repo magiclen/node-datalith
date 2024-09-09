@@ -16,6 +16,7 @@ export class File {
      * @param {Date} date The date and time when the file was created.
      * @param {string} contentType The MIME type of the file.
      * @param {number} contentLength The size of the file in bytes.
+     * @param {string} contentDisposition The file name and the expected usage.
      * @param {ReadableStream} data The file content as a readable stream.
      * @param {imageSize} [imageSize] (Optional) The size of the image in pixels, or `null` if not applicable, or `undefined` if this file is not an image.
      */
@@ -25,6 +26,7 @@ export class File {
         public readonly date: Date,
         public readonly contentType: string,
         public readonly contentLength: number,
+        public readonly contentDisposition: string,
         public readonly data: ReadableStream,
         public readonly imageSize?: ImageSize | null,
     ) {

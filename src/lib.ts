@@ -146,10 +146,21 @@ export interface ImagePutOptions extends WithBodyTimeoutOptions {
     idleTimeout?: number | null;
 }
 
-export type ResourceGetOptions = WithBodyTimeoutOptions;
+export interface FileGetOptions extends WithBodyTimeoutOptions {
+    /**
+     * Whether to download as a file. It will affect the `contentDisposition` field of the returned `File` instance.
+     *
+     * If not provided (`undefined`), Datalith will default to `false`.
+     *
+     * @default undefined (Datalith defaults to `false`)
+     */
+    download?: boolean;
+}
+
+export type ResourceGetOptions = FileGetOptions;
 export type Resolution = `${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}x` | "original";
 
-export interface ImageGetOptions extends WithBodyTimeoutOptions {
+export interface ImageGetOptions extends FileGetOptions {
     /**
      * The desired resolution of the image.
      *
@@ -381,6 +392,11 @@ export class Datalith {
      */
     public async getResource(id: string, options: ResourceGetOptions = {}): Promise<File | null> {
         const url = new URL(id, this._apiFetch);
+        const searchParams = url.searchParams;
+
+        if (options.download) {
+            searchParams.append("download", "1");
+        }
 
         const response = await timeoutFetch(url, {
             method: "GET",
@@ -400,9 +416,11 @@ export class Datalith {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const contentLength = parseInt(response.headers.get("content-length")!);
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const contentDisposition = response.headers.get("content-disposition")!;
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const body = response.body!;
 
-                return new File(response, etag, date, contentType, contentLength, body);
+                return new File(response, etag, date, contentType, contentLength, contentDisposition, body);
             }
             case 400:
                 await response.cancelBody();
@@ -425,6 +443,10 @@ export class Datalith {
     public async getImage(id: string, options: ImageGetOptions = {}): Promise<File | null> {
         const url = new URL(id, this._apiFetchImage);
         const searchParams = url.searchParams;
+
+        if (options.download) {
+            searchParams.append("download", "1");
+        }
 
         if (typeof options.resolution !== "undefined") {
             searchParams.append("resolution", options.resolution);
@@ -452,6 +474,8 @@ export class Datalith {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const contentLength = parseInt(response.headers.get("content-length")!);
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                const contentDisposition = response.headers.get("content-disposition")!;
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const body = response.body!;
 
                 const getNullableNumber = (fieldName: string): number | null => {
@@ -476,7 +500,7 @@ export class Datalith {
                     };
                 }
 
-                return new File(response, etag, date, contentType, contentLength, body, imageSize);
+                return new File(response, etag, date, contentType, contentLength, contentDisposition, body, imageSize);
             }
             case 400:
                 await response.cancelBody();

@@ -32,6 +32,7 @@ describe("Resource", () => {
         expect(file.date).toBeInstanceOf(Date);
         expect(file.contentType).toBe("image/png");
         expect(file.contentLength).toBe(11658);
+        expect(typeof file.contentDisposition).toBe("string");
         expect(file.data).toBeInstanceOf(ReadableStream);
         expect(file.imageSize).toBeUndefined();
 
@@ -71,6 +72,7 @@ describe("Image", () => {
             expect(file.date).toBeInstanceOf(Date);
             expect(file.contentType).toBe("image/png");
             expect(file.contentLength).toBe(11658);
+            expect(typeof file.contentDisposition).toBe("string");
             expect(file.data).toBeInstanceOf(ReadableStream);
             expect(file.imageSize).toBeNull();
 
@@ -87,6 +89,7 @@ describe("Image", () => {
             expect(file.date).toBeInstanceOf(Date);
             expect(file.contentType).toBe("image/webp");
             expect(typeof file.contentLength).toBe("number");
+            expect(typeof file.contentDisposition).toBe("string");
             expect(file.data).toBeInstanceOf(ReadableStream);
             expect(file.imageSize).toEqual({
                 width: 128,
