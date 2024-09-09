@@ -410,7 +410,7 @@ export class Datalith {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const etag = response.headers.get("etag")!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                const date = new Date(response.headers.get("date")!);
+                const date = response.headers.get("date")!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const contentType = response.headers.get("content-type")!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -468,7 +468,7 @@ export class Datalith {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const etag = response.headers.get("etag")!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                const date = new Date(response.headers.get("date")!);
+                const date = response.headers.get("date")!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const contentType = response.headers.get("content-type")!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion

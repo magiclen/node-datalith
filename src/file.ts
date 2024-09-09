@@ -13,7 +13,7 @@ export class File {
      *
      * @param {TimeoutResponse} resource The response from `timeoutFetch`.
      * @param {string} etag The unique identifier for the file, typically used for caching.
-     * @param {Date} date The date and time when the file was created.
+     * @param {Date} string The date and time when the file was created.
      * @param {string} contentType The MIME type of the file.
      * @param {number} contentLength The size of the file in bytes.
      * @param {string} contentDisposition The file name and the expected usage.
@@ -23,7 +23,7 @@ export class File {
     constructor(
         private readonly resource: TimeoutResponse,
         public readonly etag: string,
-        public readonly date: Date,
+        public readonly date: string,
         public readonly contentType: string,
         public readonly contentLength: number,
         public readonly contentDisposition: string,
