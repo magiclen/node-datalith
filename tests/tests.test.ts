@@ -29,7 +29,7 @@ describe("Resource", () => {
         const file = (await datalith.getResource(resource.id))!;
         expect(file).not.toBeNull();
         expect(typeof file.etag).toBe("string");
-        expect(file.date).toBeInstanceOf(Date);
+        expect(typeof file.date).toBe("string");
         expect(file.contentType).toBe("image/png");
         expect(file.contentLength).toBe(11658);
         expect(typeof file.contentDisposition).toBe("string");
@@ -69,7 +69,7 @@ describe("Image", () => {
             const file = (await datalith.getImage(image.id, { resolution: "original" }))!;
             expect(file).not.toBeNull();
             expect(typeof file.etag).toBe("string");
-            expect(file.date).toBeInstanceOf(Date);
+            expect(typeof file.date).toBe("string");
             expect(file.contentType).toBe("image/png");
             expect(file.contentLength).toBe(11658);
             expect(typeof file.contentDisposition).toBe("string");
@@ -86,7 +86,7 @@ describe("Image", () => {
             const file = (await datalith.getImage(image.id, { resolution: "1x" }))!;
             expect(file).not.toBeNull();
             expect(typeof file.etag).toBe("string");
-            expect(file.date).toBeInstanceOf(Date);
+            expect(typeof file.date).toBe("string");
             expect(file.contentType).toBe("image/webp");
             expect(typeof file.contentLength).toBe("number");
             expect(typeof file.contentDisposition).toBe("string");
