@@ -147,6 +147,7 @@ export interface ImagePutOptions extends WithBodyTimeoutOptions {
 }
 
 export type ResourceGetOptions = WithBodyTimeoutOptions;
+export type Resolution = `${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}x` | "original";
 
 export interface ImageGetOptions extends WithBodyTimeoutOptions {
     /**
@@ -158,7 +159,7 @@ export interface ImageGetOptions extends WithBodyTimeoutOptions {
      *
      * @default undefined (Datalith defaults to `"1x"`)
      */
-    resolution?: `${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}x` | "original";
+    resolution?: Resolution;
     /**
      * Whether to use a fallback image (in PNG/JPEG format instead of WebP).
      *
@@ -596,9 +597,6 @@ export class Datalith {
 
 /**
  * Validates if the input string is a valid center crop string (in the format of `"<float>:<float>"`).
- *
- * @param {string}
- * @returns {boolean}
  */
 export const validateCenterCrop = (centerCrop?: string): boolean => {
     if (typeof centerCrop === "undefined") {
@@ -606,4 +604,19 @@ export const validateCenterCrop = (centerCrop?: string): boolean => {
     }
 
     return (/^-?\d+\.?\d*:-?\d+\.?\d*$/).test(centerCrop);
+};
+
+/**
+ * Validates if the given resolution is either `undefined`, `"original"`, or follows the format of `"<positive integer>x"`.
+ */
+export const validateResolution = (resolution?: string): resolution is Resolution => {
+    if (typeof resolution === "undefined") {
+        return true;
+    }
+
+    if (resolution === "original") {
+        return true;
+    }
+
+    return (/^[1-9][0-9]*x$/).test(resolution);
 };
