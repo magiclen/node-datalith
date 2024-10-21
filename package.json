@@ -1,6 +1,6 @@
 {
     "name": "node-datalith",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "Datalith is a file management system powered by SQLite for metadata storage and the file system for file storage. This library can help you conmunicate with Datalith in Node.js.",
     "type": "module",
     "exports": "./lib/lib.js",
@@ -43,7 +43,7 @@
     "homepage": "https://magiclen.org/datalith/",
     "dependencies": {
         "@types/node": "^22.7.7",
-        "fetch-helper-x": "^0.1.6"
+        "fetch-helper-x": "^0.1.7"
     },
     "devDependencies": {
         "@eslint/js": "^9.13.0",

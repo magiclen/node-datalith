@@ -12,8 +12,8 @@ importers:
         specifier: ^22.7.7
         version: 22.7.7
       fetch-helper-x:
-        specifier: ^0.1.6
-        version: 0.1.6
+        specifier: ^0.1.7
+        version: 0.1.7
     devDependencies:
       '@eslint/js':
         specifier: ^9.13.0
@@ -996,8 +996,8 @@ packages:
   fb-watchman@2.0.2:
     resolution: {integrity: sha512-p5161BqbuCaSnB8jIbzQHOlpgsPmK5rJVDfDKO91Axs5NC1uu3HRQm6wt9cd9/+GtQQIO53JdGXXoyDpTAsgYA==}
 
-  fetch-helper-x@0.1.6:
-    resolution: {integrity: sha512-tYfE2S7fJ+YLqUobkz6aUbp4UoZ6NgKJapQ92Tvq6HzX+M5m/Y1xfN6fvxYwY1k7bTBCU94gbCVwf0+l3gXK9g==}
+  fetch-helper-x@0.1.7:
+    resolution: {integrity: sha512-839sFUZcgndc1R4I1IgjoWfhJD6pyZwQZFbfjcg6xJCWnZZxcAVbhA8/BCEEccf0UoD/cIHUsqfDs2PdMEXjOw==}
     engines: {node: '>=20'}
 
   file-entry-cache@8.0.0:
@@ -3306,7 +3306,7 @@ snapshots:
     dependencies:
       bser: 2.1.1
 
-  fetch-helper-x@0.1.6: {}
+  fetch-helper-x@0.1.7: {}
 
   file-entry-cache@8.0.0:
     dependencies:
