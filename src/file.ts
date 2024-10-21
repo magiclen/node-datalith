@@ -1,6 +1,6 @@
-import { TimeoutResponse } from "fetch-helper-x";
+import type { TimeoutResponse } from "fetch-helper-x";
 
-import { ImageSize } from "./image.js";
+import type { ImageSize } from "./image.js";
 
 /**
  * Represents a file resource with metadata such as ETag, content type, and size.
@@ -22,13 +22,13 @@ export class File {
      */
     constructor(
         private readonly resource: TimeoutResponse,
-        public readonly etag: string,
-        public readonly date: string,
-        public readonly contentType: string,
-        public readonly contentLength: number,
-        public readonly contentDisposition: string,
-        public readonly data: ReadableStream,
-        public readonly imageSize?: ImageSize | null,
+        readonly etag: string,
+        readonly date: string,
+        readonly contentType: string,
+        readonly contentLength: number,
+        readonly contentDisposition: string,
+        readonly data: ReadableStream,
+        readonly imageSize?: ImageSize | null,
     ) {
         // do nothing
     }
@@ -36,7 +36,7 @@ export class File {
     /**
      * If you want to cancel the data, use this function instead of `data.cancel()` or `data.getReader().cancel()`.
      */
-    public cancelData(): Promise<void> {
+    cancelData(): Promise<void> {
         return this.resource.cancelBody();
     }
 }

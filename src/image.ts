@@ -6,7 +6,6 @@ export interface ImageSize {
     readonly height: number;
 }
 
-
 /**
  * A class that represents an image.
  */
@@ -20,10 +19,10 @@ export class Image {
      * @param {ImageSize} imageSize The size of the 1x image.
      */
     constructor(
-        public readonly id: string,
-        public readonly createdAt: Date,
-        public readonly imageStem: string,
-        public readonly imageSize: ImageSize,
+        readonly id: string,
+        readonly createdAt: Date,
+        readonly imageStem: string,
+        readonly imageSize: ImageSize,
     ) {
         // do nothing
     }

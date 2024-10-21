@@ -1,6 +1,6 @@
 {
     "name": "node-datalith",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "Datalith is a file management system powered by SQLite for metadata storage and the file system for file storage. This library can help you conmunicate with Datalith in Node.js.",
     "type": "module",
     "exports": "./lib/lib.js",
@@ -42,20 +42,23 @@
     },
     "homepage": "https://magiclen.org/datalith/",
     "dependencies": {
-        "@types/node": "^22.5.4",
-        "fetch-helper-x": "^0.1.5"
+        "@types/node": "^22.7.7",
+        "fetch-helper-x": "^0.1.6"
     },
     "devDependencies": {
-        "@types/jest": "^29.5.12",
-        "@typescript-eslint/eslint-plugin": "^7.18.0",
-        "@typescript-eslint/parser": "^7.18.0",
-        "eslint": "^8.57.0",
+        "@eslint/js": "^9.13.0",
+        "@stylistic/eslint-plugin": "^2.9.0",
+        "@types/eslint__js": "^8.42.3",
+        "@types/jest": "^29.5.13",
+        "eslint": "^9.13.0",
         "eslint-import-resolver-typescript": "^3.6.3",
-        "eslint-plugin-import": "^2.30.0",
+        "eslint-plugin-import": "^2.31.0",
+        "globals": "^15.11.0",
         "jest": "^29.7.0",
         "rimraf": "^6.0.1",
         "ts-jest": "^29.2.5",
-        "typescript": "^5.5.4",
+        "typescript": "~5.5.4",
+        "typescript-eslint": "^8.10.0",
         "web-streams-polyfill": "^4.0.0"
     }
 }

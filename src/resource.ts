@@ -13,12 +13,12 @@ export class Resource {
      * @param {boolean} isTemporary Whether this resource is temporary.
      */
     constructor(
-        public readonly id: string,
-        public readonly createdAt: Date,
-        public readonly fileType: string,
-        public readonly fileSize: number,
-        public readonly fileName: string,
-        public readonly isTemporary: boolean,
+        readonly id: string,
+        readonly createdAt: Date,
+        readonly fileType: string,
+        readonly fileSize: number,
+        readonly fileName: string,
+        readonly isTemporary: boolean,
     ) {
         // do nothing
     }

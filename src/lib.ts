@@ -2,9 +2,14 @@ import { Readable } from "node:stream";
 
 import { nodeReadableToWebReadableStream, timeoutFetch } from "fetch-helper-x";
 
-import { BadRequestError, NotFoundError, PayloadTooLargeError } from "./errors.js";
+import {
+    BadRequestError,
+    NotFoundError,
+    PayloadTooLargeError,
+} from "./errors.js";
 import { File } from "./file.js";
-import { Image, ImageSize } from "./image.js";
+import type { ImageSize } from "./image.js";
+import { Image } from "./image.js";
 import { Resource } from "./resource.js";
 
 export * from "./file.js";
@@ -158,7 +163,9 @@ export interface FileGetOptions extends WithBodyTimeoutOptions {
 }
 
 export type ResourceGetOptions = FileGetOptions;
-export type Resolution = `${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}x` | "original";
+export type Resolution =
+    | `${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}x`
+    | "original";
 
 export interface ImageGetOptions extends FileGetOptions {
     /**
@@ -210,7 +217,7 @@ export class Datalith {
     private readonly _apiFetch: URL;
     private readonly _apiFetchImage: URL;
 
-    public constructor(apiPrefix: URL | string) {
+    constructor(apiPrefix: URL | string) {
         if (typeof apiPrefix === "string") {
             apiPrefix = new URL(apiPrefix);
         }
@@ -232,7 +239,7 @@ export class Datalith {
      * @throws {PayloadTooLargeError}
      * @throws {Error}
      */
-    public async putResource(options: ResourcePutOptions): Promise<Resource> {
+    async putResource(options: ResourcePutOptions): Promise<Resource> {
         let fileStream: ReadableStream;
 
         if (options.fileStream instanceof Readable) {
@@ -251,7 +258,6 @@ export class Datalith {
         if (typeof options.fileType !== "undefined") {
             searchParams.append("file_type", options.fileType);
         }
-
 
         if (typeof options.temporary !== "undefined") {
             searchParams.append("temporary", options.temporary ? "1" : "0");
@@ -285,15 +291,22 @@ export class Datalith {
             }
 
             const json = await response.json<{
-                id: string,
-                created_at: string,
-                file_type: string,
-                file_size: number,
-                file_name: string,
-                is_temporary: boolean,
+                id: string;
+                created_at: string;
+                file_type: string;
+                file_size: number;
+                file_name: string;
+                is_temporary: boolean;
             }>();
 
-            return new Resource(json.id, new Date(json.created_at), json.file_type, json.file_size, json.file_name, json.is_temporary);
+            return new Resource(
+                json.id,
+                new Date(json.created_at),
+                json.file_type,
+                json.file_size,
+                json.file_name,
+                json.is_temporary,
+            );
         } catch (error) {
             await response.cancelBody();
             throw error;
@@ -307,7 +320,7 @@ export class Datalith {
      * @throws {PayloadTooLargeError}
      * @throws {Error}
      */
-    public async putImage(options: ImagePutOptions): Promise<Image> {
+    async putImage(options: ImagePutOptions): Promise<Image> {
         let fileStream: ReadableStream;
 
         if (options.fileStream instanceof Readable) {
@@ -336,9 +349,12 @@ export class Datalith {
         }
 
         if (typeof options.saveOriginalFile !== "undefined") {
-            searchParams.append("save_original_file", options.saveOriginalFile ? "1" : "0");
+            searchParams.append(
+                "save_original_file",
+                options.saveOriginalFile ? "1" : "0",
+            );
         }
-        
+
         const headers: Record<string, string> = {};
 
         if (typeof options.fileSize !== "undefined") {
@@ -367,17 +383,22 @@ export class Datalith {
             }
 
             const json = await response.json<{
-                id: string,
-                created_at: string,
-                image_width: number,
-                image_height: number,
-                image_stem: string,
+                id: string;
+                created_at: string;
+                image_width: number;
+                image_height: number;
+                image_stem: string;
             }>();
 
-            return new Image(json.id, new Date(json.created_at), json.image_stem, {
-                width: json.image_width,
-                height: json.image_height,
-            });
+            return new Image(
+                json.id,
+                new Date(json.created_at),
+                json.image_stem,
+                {
+                    width: json.image_width,
+                    height: json.image_height,
+                },
+            );
         } catch (error) {
             await response.cancelBody();
             throw error;
@@ -390,7 +411,10 @@ export class Datalith {
      * @throws {BadRequestError}
      * @throws {Error}
      */
-    public async getResource(id: string, options: ResourceGetOptions = {}): Promise<File | null> {
+    async getResource(
+        id: string,
+        options: ResourceGetOptions = {},
+    ): Promise<File | null> {
         const url = new URL(id, this._apiFetch);
         const searchParams = url.searchParams;
 
@@ -405,8 +429,7 @@ export class Datalith {
         });
 
         switch (response.status) {
-            case 200:
-            {
+            case 200: {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const etag = response.headers.get("etag")!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -416,11 +439,21 @@ export class Datalith {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const contentLength = parseInt(response.headers.get("content-length")!);
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                const contentDisposition = response.headers.get("content-disposition")!;
+                const contentDisposition = response.headers.get(
+                    "content-disposition",
+                )!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const body = response.body!;
 
-                return new File(response, etag, date, contentType, contentLength, contentDisposition, body);
+                return new File(
+                    response,
+                    etag,
+                    date,
+                    contentType,
+                    contentLength,
+                    contentDisposition,
+                    body,
+                );
             }
             case 400:
                 await response.cancelBody();
@@ -440,7 +473,10 @@ export class Datalith {
      * @throws {BadRequestError}
      * @throws {Error}
      */
-    public async getImage(id: string, options: ImageGetOptions = {}): Promise<File | null> {
+    async getImage(
+        id: string,
+        options: ImageGetOptions = {},
+    ): Promise<File | null> {
         const url = new URL(id, this._apiFetchImage);
         const searchParams = url.searchParams;
 
@@ -463,8 +499,7 @@ export class Datalith {
         });
 
         switch (response.status) {
-            case 200:
-            {
+            case 200: {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const etag = response.headers.get("etag")!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -474,11 +509,15 @@ export class Datalith {
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const contentLength = parseInt(response.headers.get("content-length")!);
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                const contentDisposition = response.headers.get("content-disposition")!;
+                const contentDisposition = response.headers.get(
+                    "content-disposition",
+                )!;
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 const body = response.body!;
 
-                const getNullableNumber = (fieldName: string): number | null => {
+                const getNullableNumber = (
+                    fieldName: string,
+                ): number | null => {
                     const s = response.headers.get(fieldName);
 
                     if (s === null) {
@@ -500,7 +539,16 @@ export class Datalith {
                     };
                 }
 
-                return new File(response, etag, date, contentType, contentLength, contentDisposition, body, imageSize);
+                return new File(
+                    response,
+                    etag,
+                    date,
+                    contentType,
+                    contentLength,
+                    contentDisposition,
+                    body,
+                    imageSize,
+                );
             }
             case 400:
                 await response.cancelBody();
@@ -520,7 +568,10 @@ export class Datalith {
      * @throws {BadRequestError}
      * @throws {Error}
      */
-    public async deleteResource(id: string, options: DeleteOptions = {}): Promise<boolean> {
+    async deleteResource(
+        id: string,
+        options: DeleteOptions = {},
+    ): Promise<boolean> {
         return this.delete(id, this._apiOperate, options);
     }
 
@@ -530,11 +581,18 @@ export class Datalith {
      * @throws {BadRequestError}
      * @throws {Error}
      */
-    public deleteImage(id: string, options: DeleteOptions = {}): Promise<boolean> {
+    deleteImage(
+        id: string,
+        options: DeleteOptions = {},
+    ): Promise<boolean> {
         return this.delete(id, this._apiOperateImage, options);
     }
 
-    async delete(id: string, apiURL: URL, options: DeleteOptions = {}): Promise<boolean> {
+    async delete(
+        id: string,
+        apiURL: URL,
+        options: DeleteOptions = {},
+    ): Promise<boolean> {
         const url = new URL(id, apiURL);
 
         const response = await timeoutFetch(url, {
@@ -565,7 +623,12 @@ export class Datalith {
      * @throws {BadRequestError}
      * @throws {Error}
      */
-    public async convertResourceToImage(id: string, options: DeleteOptions & Pick<ImagePutOptions, "maxWidth" | "maxHeight" | "centerCrop">): Promise<Image> {
+    async convertResourceToImage(
+        id: string,
+        options:
+            & DeleteOptions
+            & Pick<ImagePutOptions, "maxWidth" | "maxHeight" | "centerCrop">,
+    ): Promise<Image> {
         const url = new URL(id, this._apiOperate);
         const searchParams = url.searchParams;
 
@@ -601,17 +664,22 @@ export class Datalith {
             }
 
             const json = await response.json<{
-                id: string,
-                created_at: string,
-                image_width: number,
-                image_height: number,
-                image_stem: string,
+                id: string;
+                created_at: string;
+                image_width: number;
+                image_height: number;
+                image_stem: string;
             }>();
 
-            return new Image(json.id, new Date(json.created_at), json.image_stem, {
-                width: json.image_width,
-                height: json.image_height,
-            });
+            return new Image(
+                json.id,
+                new Date(json.created_at),
+                json.image_stem,
+                {
+                    width: json.image_width,
+                    height: json.image_height,
+                },
+            );
         } catch (error) {
             await response.cancelBody();
             throw error;
@@ -627,13 +695,15 @@ export const validateCenterCrop = (centerCrop?: string): boolean => {
         return true;
     }
 
-    return (/^-?\d+\.?\d*:-?\d+\.?\d*$/).test(centerCrop);
+    return (/^-?\d+\.?\d*:-?\d+\.?\d*$/u).test(centerCrop);
 };
 
 /**
  * Validates if the given resolution is either `undefined`, `"original"`, or follows the format of `"<positive integer>x"`.
  */
-export const validateResolution = (resolution?: string): resolution is Resolution => {
+export const validateResolution = (
+    resolution?: string,
+): resolution is Resolution => {
     if (typeof resolution === "undefined") {
         return true;
     }
@@ -642,5 +712,5 @@ export const validateResolution = (resolution?: string): resolution is Resolutio
         return true;
     }
 
-    return (/^[1-9][0-9]*x$/).test(resolution);
+    return (/^[1-9][0-9]*x$/u).test(resolution);
 };

@@ -37,7 +37,7 @@ describe("Resource", () => {
         expect(file.imageSize).toBeUndefined();
 
         const data = await buffer(file.data);
-        
+
         expect(data).toEqual(fileData);
 
         expect(await datalith.deleteResource(resource.id)).toBe(true);
@@ -55,7 +55,10 @@ describe("Image", () => {
     it("should success", async () => {
         const datalith = new Datalith(API_PREFIX);
 
-        const image = await datalith.putImage({ fileStream: createReadStream(FILE_PATH), maxWidth: 128 });
+        const image = await datalith.putImage({
+            fileStream: createReadStream(FILE_PATH),
+            maxWidth: 128,
+        });
         expect(typeof image.id).toBe("string");
         expect(image.createdAt).toBeInstanceOf(Date);
         expect(typeof image.imageStem).toBe("string");
@@ -77,7 +80,7 @@ describe("Image", () => {
             expect(file.imageSize).toBeNull();
 
             const data = await buffer(file.data);
-        
+
             expect(data).toEqual(fileData);
         }
 
@@ -95,7 +98,7 @@ describe("Image", () => {
                 width: 128,
                 height: 128,
             });
-            
+
             await file.cancelData();
         }
 
