@@ -221,7 +221,7 @@ export default tseslint.config(
  
             "@stylistic/semi-spacing": ["error", {
                 before: false,
-                after: false,
+                after: true,
             }],
  
             "@stylistic/spaced-comment": ["error", "always", {}],
