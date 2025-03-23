@@ -269,7 +269,7 @@ export class Datalith {
             headers["x-file-length"] = options.fileSize.toString();
         }
 
-        const response = await timeoutFetch(this._apiOperate.toString(), {
+        const response = await timeoutFetch(url, {
             method: "PUT",
             headers,
             body: fileStream,
@@ -329,7 +329,7 @@ export class Datalith {
             fileStream = options.fileStream;
         }
 
-        const url = new URL(this._apiOperate);
+        const url = new URL(this._apiOperateImage);
         const searchParams = url.searchParams;
 
         if (typeof options.fileName !== "undefined") {
@@ -361,7 +361,7 @@ export class Datalith {
             headers["x-file-length"] = options.fileSize.toString();
         }
 
-        const response = await timeoutFetch(this._apiOperateImage.toString(), {
+        const response = await timeoutFetch(url, {
             method: "PUT",
             headers,
             body: fileStream,

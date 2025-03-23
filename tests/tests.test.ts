@@ -17,12 +17,12 @@ describe("Resource", () => {
     it("should success", async () => {
         const datalith = new Datalith(API_PREFIX);
 
-        const resource = await datalith.putResource({ fileStream: createReadStream(FILE_PATH) });
+        const resource = await datalith.putResource({ fileStream: createReadStream(FILE_PATH), fileName: "image.png" });
         expect(typeof resource.id).toBe("string");
         expect(resource.createdAt).toBeInstanceOf(Date);
         expect(resource.fileType).toBe("image/png");
         expect(resource.fileSize).toBe(11658);
-        expect(typeof resource.fileName).toBe("string");
+        expect(resource.fileName).toBe("image.png");
         expect(resource.isTemporary).toBe(false);
 
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -57,11 +57,12 @@ describe("Image", () => {
 
         const image = await datalith.putImage({
             fileStream: createReadStream(FILE_PATH),
+            fileName: "image.png",
             maxWidth: 128,
         });
         expect(typeof image.id).toBe("string");
         expect(image.createdAt).toBeInstanceOf(Date);
-        expect(typeof image.imageStem).toBe("string");
+        expect(image.imageStem).toBe("image");
         expect(image.imageSize).toEqual({
             width: 128,
             height: 128,
