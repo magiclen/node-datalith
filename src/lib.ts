@@ -163,9 +163,9 @@ export interface FileGetOptions extends WithBodyTimeoutOptions {
 }
 
 export type ResourceGetOptions = FileGetOptions;
-export type Resolution =
-    | `${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}x`
-    | "original";
+export type Resolution
+    = | `${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}x`
+        | "original";
 
 export interface ImageGetOptions extends FileGetOptions {
     /**

@@ -1,25 +1,24 @@
 import eslint from '@eslint/js';
 import stylistic from "@stylistic/eslint-plugin";
+import { defineConfig, globalIgnores } from "eslint/config";
  
 import * as importPlugin from "eslint-plugin-import";
 import globals from "globals";
 import tseslint from "typescript-eslint";
  
-export default tseslint.config(
+export default defineConfig(
+    globalIgnores(["*.mjs", "lib/*"]),
     eslint.configs.recommended,
     ...tseslint.configs.strictTypeChecked,
     ...tseslint.configs.stylisticTypeChecked,
     {
         languageOptions: {
-            ecmaVersion: 2023,
-            sourceType: "module",
             globals: {
                 ...globals.browser,
                 ...globals.node,
             },
             parserOptions: {
                 projectService: true,
-                tsconfigRootDir: import.meta.dirname,
             },
         },
         rules: {
@@ -177,7 +176,7 @@ export default tseslint.config(
             "@typescript-eslint/no-useless-empty-export": "error",
         },
     },
-    stylistic.configs['recommended-flat'],
+    stylistic.configs['recommended'],
     {
         rules: {
             // override
@@ -326,5 +325,4 @@ export default tseslint.config(
             }],
         }
     },
-    { ignores: ["eslint.config.mjs", "lib/*"], },
 );

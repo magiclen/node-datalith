@@ -1,6 +1,6 @@
 {
     "name": "node-datalith",
-    "version": "0.2.3",
+    "version": "0.3.0",
     "description": "Datalith is a file management system powered by SQLite for metadata storage and the file system for file storage. This library can help you conmunicate with Datalith in Node.js.",
     "type": "module",
     "exports": "./lib/lib.js",
@@ -9,7 +9,7 @@
         "lib"
     ],
     "engines": {
-        "node": ">=20"
+        "node": ">=22"
     },
     "scripts": {
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
@@ -42,22 +42,22 @@
     },
     "homepage": "https://magiclen.org/datalith/",
     "dependencies": {
-        "@types/node": "^22.13.11",
+        "@types/node": "^25.3.3",
         "fetch-helper-x": "^0.1.8"
     },
     "devDependencies": {
-        "@eslint/js": "^9.23.0",
-        "@stylistic/eslint-plugin": "^4.2.0",
-        "@types/jest": "^29.5.14",
-        "eslint": "^9.23.0",
-        "eslint-import-resolver-typescript": "^4.2.2",
-        "eslint-plugin-import": "^2.31.0",
-        "globals": "^16.0.0",
-        "jest": "^29.7.0",
-        "rimraf": "^6.0.1",
-        "ts-jest": "^29.2.6",
-        "typescript": "~5.8.2",
-        "typescript-eslint": "^8.27.0",
-        "web-streams-polyfill": "^4.1.0"
+        "@eslint/js": "^9.39.2",
+        "@stylistic/eslint-plugin": "^5.7.1",
+        "@types/jest": "^30.0.0",
+        "eslint": "^9.39.2",
+        "eslint-import-resolver-typescript": "^4.4.4",
+        "eslint-plugin-import": "^2.32.0",
+        "globals": "^17.3.0",
+        "jest": "^30.2.0",
+        "rimraf": "^6.1.2",
+        "ts-jest": "^29.4.6",
+        "typescript": "~5.9.3",
+        "typescript-eslint": "^8.54.0",
+        "web-streams-polyfill": "^4.2.0"
     }
 }
