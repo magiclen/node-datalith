@@ -1,29 +1,120 @@
 name: CI
 
 on: [push, pull_request]
-  
+
+permissions:
+    contents: read
+
 jobs:
-  tests:
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
-        node-version:
-          - 22.x
-          - 24.x
-    name: Use ${{ matrix.node-version }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node-version }}
-      - uses: pnpm/action-setup@v4
-        with:
-          version: latest
-      - run: pnpm install
-      - run: npm run build --if-present
-      # - run: npm test
+    check:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: pnpm/action-setup@v6
+              with:
+                  version: latest
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 24.x
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: npm run check
+
+    tests:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, macos-latest, windows-latest]
+                node-version: [24.x, 26.x]
+        name: Node ${{ matrix.node-version }} on ${{ matrix.os }}
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v7
+            - uses: pnpm/action-setup@v6
+              with:
+                  version: latest
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: npm run build
+            - run: npm test
+            - name: Import the public package entry
+              run: node --input-type=module -e "import { Datalith } from 'node-datalith'; new Datalith('http://127.0.0.1:1111');"
+
+    service:
+        name: Build the current Datalith service
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  repository: magiclen/datalith
+                  ref: master
+                  path: service
+                  persist-credentials: false
+            - name: Record the service revision
+              working-directory: service
+              run: git rev-parse HEAD
+            - uses: docker/setup-buildx-action@v4
+            - uses: docker/build-push-action@v7
+              with:
+                  context: ./service
+                  target: media
+                  tags: datalith:integration
+                  outputs: type=docker,dest=/tmp/datalith.tar
+                  cache-from: type=gha,scope=datalith-media
+                  cache-to: type=gha,mode=max,scope=datalith-media
+            - uses: actions/upload-artifact@v7
+              with:
+                  name: datalith-service
+                  path: /tmp/datalith.tar
+                  compression-level: 0
+                  retention-days: 1
+
+    integration:
+        needs: service
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                node-version: [24.x, 26.x]
+        name: Service integration on Node ${{ matrix.node-version }}
+        env:
+            DATALITH_BASE_URL: http://127.0.0.1:1111
+            DATALITH_TEST_CONTAINER: datalith-integration
+        steps:
+            - uses: actions/checkout@v7
+            - uses: pnpm/action-setup@v6
+              with:
+                  version: latest
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - uses: actions/download-artifact@v8
+              with:
+                  name: datalith-service
+                  path: /tmp
+            - name: Start an isolated full-feature service
+              run: |
+                  docker load --input /tmp/datalith.tar
+                  docker run --detach --name "$DATALITH_TEST_CONTAINER" --init \
+                    --publish 127.0.0.1:1111:1111 datalith:integration
+            - name: Wait for the service API and processing tools
+              run: |
+                  for attempt in $(seq 1 60); do
+                    if curl --fail --silent "$DATALITH_BASE_URL/capabilities" --output "$RUNNER_TEMP/capabilities.json"; then
+                      break
+                    fi
+                    sleep 1
+                  done
+                  node --input-type=module -e "import assert from 'node:assert/strict'; import { readFile } from 'node:fs/promises'; const c = JSON.parse(await readFile(process.env.RUNNER_TEMP + '/capabilities.json', 'utf8')); assert.equal(c.api_version, '1'); for (const k of ['image', 'audio', 'video']) assert.equal(c.media[k], true);"
+            - run: npm run test:integration
+            - name: Service logs
+              if: failure()
+              run: docker logs "$DATALITH_TEST_CONTAINER"
+            - name: Stop the service
+              if: always()
+              run: docker rm --force "$DATALITH_TEST_CONTAINER"
