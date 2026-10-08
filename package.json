@@ -1,63 +1,68 @@
 {
     "name": "node-datalith",
     "version": "0.3.0",
-    "description": "Datalith is a file management system powered by SQLite for metadata storage and the file system for file storage. This library can help you conmunicate with Datalith in Node.js.",
-    "type": "module",
-    "exports": "./lib/lib.js",
-    "types": "./lib/lib.d.ts",
-    "files": [
-        "lib"
+    "description": "A Node.js client for Datalith file storage, media processing, and HLS delivery.",
+    "keywords": [
+        "datalith",
+        "file",
+        "oss",
+        "sqlite",
+        "storage"
     ],
-    "engines": {
-        "node": ">=22"
+    "homepage": "https://magiclen.org/datalith/",
+    "bugs": {
+        "url": "https://github.com/magiclen/node-datalith/issues"
     },
-    "scripts": {
-        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-        "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
-        "test:inspect-brk": "node --experimental-vm-modules --inspect-brk=0.0.0.0:9230 node_modules/jest/bin/jest.js --testTimeout 0 --runInBand",
-        "clean": "rimraf lib",
-        "build": "npm run clean && tsc -p tsconfig.build.json",
-        "build:watch": "npm run build -- -w",
-        "lint": "eslint src tests",
-        "lint:fix": "npm run lint -- --fix",
-        "prepare": "git config core.hooksPath .githooks || exit 0",
-        "prepack": "npm run build",
-        "prepublishOnly": "npm run lint && npm run test"
-    },
+    "license": "MIT",
+    "author": "Magic Len",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/magiclen/node-datalith.git"
     },
-    "keywords": [
-        "datalith",
-        "sqlite",
-        "storage",
-        "file",
-        "oss"
+    "files": [
+        "lib"
     ],
-    "author": "Magic Len",
-    "license": "MIT",
-    "bugs": {
-        "url": "https://github.com/magiclen/node-datalith/issues"
+    "type": "module",
+    "types": "./lib/index.d.ts",
+    "exports": "./lib/index.js",
+    "scripts": {
+        "test": "tsx --test",
+        "clean": "rimraf lib",
+        "build": "npm run clean && rslib build",
+        "build:watch": "rslib build --watch",
+        "lint": "oxlint",
+        "lint:fix": "oxlint --fix",
+        "format": "oxfmt",
+        "format:check": "oxfmt --check",
+        "knip": "knip",
+        "check": "npm run build && npm run typecheck && npm run lint && npm run format:check && npm run knip",
+        "prepare": "node setup-git-hooks.mjs",
+        "prepack": "npm run build",
+        "prepublishOnly": "npm run check && npm run test",
+        "typecheck": "tsc -p tsconfig.build.json --noEmit",
+        "test:integration": "npm run build && tsx --test tests/integration/service.integration.ts"
     },
-    "homepage": "https://magiclen.org/datalith/",
     "dependencies": {
-        "@types/node": "^25.3.3",
-        "fetch-helper-x": "^0.1.8"
+        "fetch-helper-x": "^0.2.1"
     },
     "devDependencies": {
-        "@eslint/js": "^9.39.2",
-        "@stylistic/eslint-plugin": "^5.7.1",
-        "@types/jest": "^30.0.0",
-        "eslint": "^9.39.2",
-        "eslint-import-resolver-typescript": "^4.4.4",
-        "eslint-plugin-import": "^2.32.0",
-        "globals": "^17.3.0",
-        "jest": "^30.2.0",
-        "rimraf": "^6.1.2",
-        "ts-jest": "^29.4.6",
-        "typescript": "~5.9.3",
-        "typescript-eslint": "^8.54.0",
-        "web-streams-polyfill": "^4.2.0"
+        "@rslib/core": "^1.0.1",
+        "@types/node": "^26.6.4",
+        "knip": "^6.40.0",
+        "oxfmt": "^0.72.0",
+        "oxlint": "^1.87.0",
+        "oxlint-tsgolint": "^7.0.2003",
+        "rimraf": "^6.1.3",
+        "tsx": "^4.23.15",
+        "typescript": "^7.0.2"
+    },
+    "engines": {
+        "node": ">=24"
+    },
+    "knip": {
+        "entry": [
+            "tests/**/*.test.ts",
+            "tests/integration/*.integration.ts"
+        ]
     }
 }

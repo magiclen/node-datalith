@@ -3,12 +3,12 @@
     "compilerOptions": {
         // File Layout
         // "rootDir": "./src",
-        "outDir": "./lib",
+        // "outDir": "./dist",
         // Environment Settings
         // See also https://aka.ms/tsconfig/module
         "module": "node20",
-        "target": "es2024",
-        // "types": [],
+        "target": "es2025",
+        "types": ["node"],
         // For nodejs:
         // "lib": ["esnext"],
         // "types": ["node"],
@@ -35,7 +35,6 @@
         "noUncheckedSideEffectImports": true,
         "moduleDetection": "force",
         "skipLibCheck": true,
-        "forceConsistentCasingInFileNames": true,
-        "esModuleInterop": true,
+        "rewriteRelativeImportExtensions": true
     }
 }
