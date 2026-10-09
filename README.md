@@ -51,6 +51,7 @@ const thumbnailData = await thumbnail.arrayBuffer();
 ```
 
 Uploads accept Buffer, Uint8Array, Blob, Web ReadableStream, and AsyncIterable, including Node.js Readable.
+Without `fileName`, an upload uses the name of a `File` or `fs.ReadStream` source.
 Stream chunks must be binary data.
 You do not need to know the file size before uploading.
 

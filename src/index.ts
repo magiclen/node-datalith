@@ -1,3 +1,5 @@
+import { ReadStream } from "node:fs";
+import { basename } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { isTimeoutError, timeoutFetch } from "fetch-helper-x";
@@ -134,6 +136,28 @@ const expectKind = <K extends TaskKind>(task: Task, kinds: readonly K[]): Task<K
         });
     }
     return task;
+};
+// Name the media after a file source, unless the service would reject the name.
+const sourceName = (source: UploadSource): string | undefined => {
+    let name: string | undefined;
+    if (source instanceof File) {
+        name = source.name;
+    } else if (source instanceof ReadStream) {
+        // A stream from a file handle has no path.
+        const path: unknown = source.path;
+        if (typeof path === "string" || path instanceof Buffer) {
+            name = basename(path.toString());
+        }
+    }
+    if (
+        name === undefined ||
+        name.trim() === "" ||
+        Buffer.byteLength(name) > 512 ||
+        /\p{Cc}/u.test(name)
+    ) {
+        return undefined;
+    }
+    return name;
 };
 // The service creates an `upload` task when any automatic conversion is enabled.
 const uploadKind = (processing: UploadOptions): MediaKind | "upload" => {
@@ -315,9 +339,16 @@ export class Datalith {
         processing: UploadOptions = {},
         options: MutationOptions = {},
     ): Promise<Task<MediaKind | "upload">> {
-        return expectKind(await this.#upload("uploads", source, processing, options), [
-            uploadKind(processing),
-        ]);
+        const fileName = processing.fileName ?? sourceName(source);
+        return expectKind(
+            await this.#upload(
+                "uploads",
+                source,
+                fileName === undefined ? processing : { ...processing, fileName },
+                options,
+            ),
+            [uploadKind(processing)],
+        );
     }
     async importMedia(
         source: UploadSource,

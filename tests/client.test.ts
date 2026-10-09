@@ -328,6 +328,12 @@ describe("Datalith client", () => {
         assert.equal(await datalith.getTask("missing"), null);
     });
 
+    it("names an upload after its source file", async () => {
+        await datalith.upload(new File(["Hello world!"], "hello.txt"));
+        assert.deepEqual(uploadedOptions, { file_name: "hello.txt" });
+        assert.equal(uploadedFile, "Hello world!");
+    });
+
     it("fills in fields that the service leaves out", async () => {
         const image = await datalith.getMedia(IMAGE_ID);
         assert.ok(image?.kind === "image");
