@@ -95,7 +95,9 @@ const hasKind = <K extends TaskKind>(task: Task, kinds: readonly K[]): task is T
     kinds.some((kind) => task.kind === kind);
 const expectKind = <K extends TaskKind>(task: Task, kinds: readonly K[]): Task<K> => {
     if (!hasKind(task, kinds)) {
-        throw new DatalithProtocolError("Unexpected task kind.");
+        throw new DatalithProtocolError("Unexpected task kind " + JSON.stringify(task.kind), {
+            path: "kind",
+        });
     }
     return task;
 };
