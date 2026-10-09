@@ -18,7 +18,7 @@ export type VideoResolution =
     | 2160;
 export type VideoFrameRate = 10 | 12 | 15 | 20 | 24 | 25 | 30 | 48 | 50 | 60;
 export type HlsAudio = "aac" | "all" | "flac";
-export type ContentFormat = ImageFormat | "m4a" | "aac" | "flac";
+export type ContentFormat = ImageFormat | "m4a" | "aac" | "flac" | (string & {});
 
 export interface Retention {
     expiresInSeconds?: number | null;
@@ -72,6 +72,19 @@ export type ResourceUploadOptions = UploadBase &
         | { enableConvertToVideo?: false; video?: VideoOptions }
         | { enableConvertToVideo: true; video: VideoOptions }
     );
+/** Keeps the upload as a resource without automatic conversion. */
+export type ResourceOnlyUploadOptions = ResourceUploadOptions & {
+    enableConvertToImage?: false;
+    enableConvertToAudio?: false;
+    enableConvertToVideo?: false;
+};
+/** Enables at least one automatic media conversion. */
+export type AutomaticUploadOptions = ResourceUploadOptions &
+    (
+        | { enableConvertToImage: true }
+        | { enableConvertToAudio: true }
+        | { enableConvertToVideo: true }
+    );
 export interface ImageUploadOptions extends UploadBase {
     kind: "image";
     image?: ImageOptions;
@@ -102,8 +115,14 @@ export interface VideoProcessOptions {
     video: VideoOptions;
 }
 export type ProcessOptions = ImageProcessOptions | AudioProcessOptions | VideoProcessOptions;
-/** Accepts binary data from memory or a stream, including Node.js Readable. */
+/**
+ * Accepts binary data, streams, local file paths, or file URLs.
+ *
+ * A string is always a local file path, so never pass untrusted text.
+ */
 export type UploadSource =
+    | string
+    | URL
     | Blob
     | Uint8Array
     | ReadableStream<Uint8Array>
@@ -254,7 +273,6 @@ export interface TaskFailure {
 }
 interface TaskBase {
     readonly id: string;
-    readonly status: TaskStatus;
     readonly stage: string;
     readonly completedUnits: number;
     readonly totalUnits: number | null;
@@ -264,12 +282,18 @@ interface TaskBase {
     readonly error: TaskFailure | null;
 }
 export type Task<K extends TaskKind = TaskKind> = K extends TaskKind
-    ? TaskBase & { readonly kind: K; readonly result: TaskResults[K] | null }
+    ? TaskBase & { readonly kind: K } & (
+              | { readonly status: "succeeded"; readonly result: TaskResults[K] }
+              | {
+                    readonly status: Exclude<TaskStatus, "succeeded">;
+                    readonly result: TaskResults[K] | null;
+                }
+          )
     : never;
-export type SuccessfulTask<K extends TaskKind = TaskKind> = Task<K> & {
-    readonly status: "succeeded";
-    readonly result: TaskResults[K];
-};
+export type SuccessfulTask<K extends TaskKind = TaskKind> = Extract<
+    Task<K>,
+    { status: "succeeded" }
+>;
 export interface Page<T> {
     readonly items: readonly T[];
     readonly page: number;

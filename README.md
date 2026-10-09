@@ -14,8 +14,6 @@ npm install node-datalith
 ```
 
 ```typescript
-import { createReadStream } from "node:fs";
-
 import { Datalith, DatalithError } from "node-datalith";
 
 const API_PREFIX = "http://127.0.0.1:1111";
@@ -23,7 +21,7 @@ const FILE_PATH = "tests/data/image.png";
 
 const datalith = new Datalith(API_PREFIX);
 
-const resource = await datalith.uploadAndWait(createReadStream(FILE_PATH), {
+const resource = await datalith.uploadAndWait(FILE_PATH, {
     fileName: "image.png",
 });
 const response = await datalith.getContent(resource.id);
@@ -32,7 +30,7 @@ if (!response.ok) {
 }
 const data = await response.arrayBuffer();
 
-const image = await datalith.uploadAndWait(createReadStream(FILE_PATH), {
+const image = await datalith.uploadAndWait(FILE_PATH, {
     kind: "image",
     image: {
         variants: [{ name: "thumbnail", maxWidth: 128, multipliers: [1, 2] }],
@@ -40,6 +38,9 @@ const image = await datalith.uploadAndWait(createReadStream(FILE_PATH), {
 });
 
 const original = await datalith.getContent(image.id, { variant: "original" });
+if (!original.ok) {
+    throw await DatalithError.fromResponse(original);
+}
 const originalData = await original.arrayBuffer();
 
 const thumbnail = await datalith.getContent(image.id, {
@@ -47,11 +48,18 @@ const thumbnail = await datalith.getContent(image.id, {
     multiplier: 1,
     format: "webp",
 });
+if (!thumbnail.ok) {
+    throw await DatalithError.fromResponse(thumbnail);
+}
 const thumbnailData = await thumbnail.arrayBuffer();
 ```
 
-Uploads accept Buffer, Uint8Array, Blob, Web ReadableStream, and AsyncIterable, including Node.js Readable.
-Without `fileName`, an upload uses the name of a `File` or `fs.ReadStream` source.
+`upload`, `uploadAndWait`, and `importMedia` accept local file paths and `file:` URL objects, as well as Buffer, Uint8Array, Blob, Web ReadableStream, and AsyncIterable, including Node.js Readable.
+Strings always mean local paths; relative paths use the working directory when the call starts.
+Never pass untrusted text as a source, because the SDK reads every string as a local file.
+Pass `new URL("file:///...")` for a file URL, or Buffer or Blob for text content.
+The SDK opens and closes file streams for path and URL sources.
+Without `fileName`, an upload uses the name of the local file, `File`, or `fs.ReadStream` source.
 Stream chunks must be binary data.
 You do not need to know the file size before uploading.
 
@@ -71,7 +79,7 @@ File sizes and list totals are numbers.
 ## Tasks
 
 ```typescript
-const task = await datalith.upload(createReadStream(FILE_PATH));
+const task = await datalith.upload(FILE_PATH);
 const completed = await datalith.waitForTask(task, {
     pollInterval: 1000,
     waitTimeout: 60_000,
@@ -86,6 +94,7 @@ console.log(completed.result);
 `uploadAndWait` returns the completed Media.
 A failed or cancelled task throws `TaskError`, which holds the Task.
 Polling keeps going through temporary failures, such as a service restart, up to `maxPollRetries` failures in a row (10 by default).
+HTTP 429 and server errors can be retried; a valid `Retry-After` header can extend the retry delay.
 
 Use `cancelTask` to cancel remote work and `retryTask` to retry a failed or cancelled task.
 An AbortSignal or `waitTimeout` only stops local waiting.
@@ -98,12 +107,12 @@ A custom async iterator must handle its own long waits when a request is stopped
 ## Audio and video
 
 ```typescript
-const audio = await datalith.uploadAndWait(createReadStream("./audio.wav"), {
+const audio = await datalith.uploadAndWait("./audio.wav", {
     kind: "audio",
     audio: { preserveLossless: true },
 });
 
-const video = await datalith.uploadAndWait(createReadStream("./video.mp4"), {
+const video = await datalith.uploadAndWait("./video.mp4", {
     kind: "video",
     video: {
         variants: [
@@ -164,7 +173,7 @@ For resources and images, the first content GET consumes access; HEAD does not.
 For audio and video, read metadata first, then claim a playback session.
 
 ```typescript
-const temporaryVideo = await datalith.uploadAndWait(createReadStream("./video.mp4"), {
+const temporaryVideo = await datalith.uploadAndWait("./video.mp4", {
     kind: "video",
     video: { variants: [{ resolution: 720, fps: 30 }] },
     retention: { singleUse: true },
@@ -175,6 +184,9 @@ const session = await datalith.claimPlaybackSession(temporaryVideo.id, {
     idempotencyKey: "playback-claim-123",
 });
 const master = await datalith.getHlsMaster(temporaryVideo.id, { session: session.token });
+if (!master.ok) {
+    throw await DatalithError.fromResponse(master);
+}
 const playlist = await master.text();
 ```
 
@@ -190,18 +202,22 @@ Look up media IDs in your application's data instead of calling ordinary `getMed
 ## Import, export, and MP4
 
 ```typescript
-import { writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { ReadableStream } from "node:stream/web";
 
 const backup = await datalith.waitForTask(await datalith.exportMedia([resource.id]));
 const archive = await datalith.getArtifact(backup.id);
 if (!archive.ok) {
     throw await DatalithError.fromResponse(archive);
 }
-await writeFile("./backup.tar", new Uint8Array(await archive.arrayBuffer()));
+if (!(archive.body instanceof ReadableStream)) {
+    throw new Error("Expected an archive body stream.");
+}
+await pipeline(Readable.fromWeb(archive.body), createWriteStream("./backup.tar"));
 
-const imported = await datalith.waitForTask(
-    await datalith.importMedia(createReadStream("./backup.tar")),
-);
+const imported = await datalith.waitForTask(await datalith.importMedia("./backup.tar"));
 console.log(imported.result.idMap);
 
 const task = await datalith.exportMp4(video.id, video.video.variants[0].id);
@@ -210,10 +226,13 @@ const response = await datalith.getArtifact(completed.id);
 if (!response.ok) {
     throw await DatalithError.fromResponse(response);
 }
-await writeFile("./video.mp4", new Uint8Array(await response.arrayBuffer()));
+if (!(response.body instanceof ReadableStream)) {
+    throw new Error("Expected an MP4 body stream.");
+}
+await pipeline(Readable.fromWeb(response.body), createWriteStream("./video.mp4"));
 ```
 
-The example reads small files into memory; stream large files to storage.
+The example streams each file to disk after checking the HTTP status.
 `exportMedia()` without IDs exports all available media.
 Import results include `idMap` and `fileIdMap`.
 MP4 export uses an existing video variant, and the service chooses its audio track.
@@ -228,8 +247,10 @@ In the constructor, `requestTimeout` limits control requests, such as reading me
 `responseTimeout` limits the wait for the response after a request is sent.
 Uploads and imports wait up to 5 minutes by default, because the service checks and stores the file before it answers; other requests use `idleTimeout`.
 For one request, `requestTimeout`, `idleTimeout`, and `responseTimeout` override these defaults.
-Use null to turn off a timeout.
-`waitTimeout` limits task waiting separately from the HTTP request timeout.
+Use null to turn off an SDK timeout.
+Node.js Fetch has its own timeouts; its default response header wait is 5 minutes, even when the SDK response timeout is null or longer.
+`waitTimeout` limits task waiting separately from the HTTP request timeout and defaults to 24 hours.
+It starts when `waitForTask` begins; in `uploadAndWait`, this is after the upload returns a task.
 
 `DatalithError` holds the HTTP status, service code, requestId, and retryAfter.
 `TaskError` holds the Task, and `TaskWaitTimeoutError` holds the taskId.

@@ -1,6 +1,8 @@
 import { ReadStream } from "node:fs";
-import { basename } from "node:path";
+import { open, stat } from "node:fs/promises";
+import { basename, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 
 import { isTimeoutError, timeoutFetch } from "fetch-helper-x";
 import type { TimeoutRequestInit } from "fetch-helper-x";
@@ -18,6 +20,7 @@ import { multipart } from "./multipart.ts";
 import type {
     AudioProcessOptions,
     AudioUploadOptions,
+    AutomaticUploadOptions,
     Capabilities,
     ContentFormat,
     HlsAudio,
@@ -30,6 +33,8 @@ import type {
     Page,
     PlaybackSession,
     ProcessOptions,
+    ResourceMedia,
+    ResourceOnlyUploadOptions,
     ResourceUploadOptions,
     StandaloneAudioMedia,
     SuccessfulTask,
@@ -57,34 +62,32 @@ const UPLOAD_RESPONSE_TIMEOUT = 300_000;
 export interface RequestOptions {
     headers?: HeadersInit;
     signal?: AbortSignal;
-    /** The limit in milliseconds for the whole request; null removes the limit. */
+    /** The whole request limit in milliseconds; null stops the SDK timer. */
     requestTimeout?: number | null;
-    /**
-     * The longest time in milliseconds without progress while sending or receiving; null removes
-     * the limit.
-     */
+    /** The limit in milliseconds without transfer progress; null stops the SDK timer. */
     idleTimeout?: number | null;
     /**
-     * The longest wait in milliseconds for the response after the request is sent; null removes the
-     * limit.
+     * The response header wait limit in milliseconds; null stops the SDK timer.
+     *
+     * Node.js Fetch has its own timeout, which defaults to 5 minutes.
      */
     responseTimeout?: number | null;
 }
 /** Default headers and timeouts for the requests of a client. */
 export interface DatalithOptions {
     headers?: HeadersInit;
-    /**
-     * The limit in milliseconds for control requests, such as reading metadata, 30 seconds by
-     * default.
-     */
+    /** The control request limit in milliseconds, 30 seconds by default. */
     requestTimeout?: number | null;
     /** The limit in milliseconds for uploads, imports, and downloads, 24 hours by default. */
     transferTimeout?: number | null;
     /** The longest time in milliseconds without progress, 30 seconds by default. */
     idleTimeout?: number | null;
     /**
-     * The longest wait in milliseconds for the response after the request is sent; uploads and
-     * imports wait 5 minutes by default, and other requests use `idleTimeout`.
+     * The response header wait limit in milliseconds, 5 minutes for uploads and imports.
+     *
+     * Other requests use idleTimeout by default.
+     *
+     * Node.js Fetch has its own timeout, which defaults to 5 minutes.
      */
     responseTimeout?: number | null;
 }
@@ -121,12 +124,13 @@ export interface Mp4ExportOptions extends MutationOptions {
 export interface WaitOptions extends RequestOptions {
     /** Polls run one at a time. */
     pollInterval?: number;
-    /** The local wait limit in milliseconds; null removes the limit. */
-    waitTimeout?: number | null;
     /**
-     * How many polls in a row can fail with a temporary error, such as while the service restarts,
-     * 10 by default.
+     * The local wait limit in milliseconds, 24 hours by default; null removes the limit.
+     *
+     * The timer starts when waiting begins.
      */
+    waitTimeout?: number | null;
+    /** How many polls in a row can fail with a temporary error, 10 by default. */
     maxPollRetries?: number;
     /** The first call gets the task that the wait starts with, so you can keep its ID. */
     onProgress?: (task: Task) => void;
@@ -151,10 +155,29 @@ const expectKind = <K extends TaskKind>(task: Task, kinds: readonly K[]): Task<K
     }
     return task;
 };
+const sourcePath = (source: string | URL): string => {
+    if (typeof source === "string") {
+        return resolve(source);
+    }
+    if (source.protocol !== "file:") {
+        throw new TypeError("Expected a file URL for an upload source.");
+    }
+    return fileURLToPath(source);
+};
+// Open a local file before the request starts, so a missing file fails without sending anything.
+const openFile = async (source: string | URL): Promise<ReadStream> => {
+    const path = sourcePath(source);
+    if ((await stat(path)).isDirectory()) {
+        throw new TypeError("Expected a file, not a directory, for an upload source.");
+    }
+    return (await open(path)).createReadStream();
+};
 // Name the media after a file source, unless the service would reject the name.
 const sourceName = (source: UploadSource): string | undefined => {
     let name: string | undefined;
-    if (source instanceof File) {
+    if (typeof source === "string" || source instanceof URL) {
+        name = basename(sourcePath(source));
+    } else if (source instanceof File) {
         name = source.name;
     } else if (source instanceof ReadStream) {
         // A stream from a file handle has no path.
@@ -184,13 +207,20 @@ const uploadKind = (processing: UploadOptions): MediaKind | "upload" => {
         ? "upload"
         : "resource";
 };
-const isSuccessful = (task: Task): task is SuccessfulTask =>
-    task.status === "succeeded" && task.result !== null;
-// Network failures, timeouts, and server errors can be temporary, such as while the service restarts.
+// Network failures, timeouts, rate limits, and server errors can be temporary.
 const isTemporary = (error: unknown): boolean =>
     (error instanceof TypeError && error.cause !== undefined) ||
     isTimeoutError(error) ||
-    (error instanceof DatalithError && error.status >= 500);
+    (error instanceof DatalithError && (error.status === 429 || error.status >= 500));
+// A Retry-After header can ask for a longer wait than the backoff, up to the timer limit.
+const retryDelay = (error: unknown, backoff: number): number => {
+    if (!(error instanceof DatalithError) || error.retryAfter === null) {
+        return backoff;
+    }
+    const value = error.retryAfter.trim();
+    const wait = /^\d+$/u.test(value) ? Number(value) * 1000 : Date.parse(value) - Date.now();
+    return Number.isFinite(wait) ? Math.min(Math.max(backoff, wait), MAX_DELAY) : backoff;
+};
 // `undefined` means that a timeout is not set, while `null` removes the limit.
 const firstTimeout = (...timeouts: (number | null | undefined)[]): number | null | undefined =>
     timeouts.find((timeout) => timeout !== undefined);
@@ -310,7 +340,9 @@ export class Datalith {
         if (options.idempotencyKey !== undefined) {
             headers.set("idempotency-key", options.idempotencyKey);
         }
-        const form = multipart(source, processing, options.signal);
+        const data =
+            typeof source === "string" || source instanceof URL ? await openFile(source) : source;
+        const form = multipart(data, processing, options.signal);
         headers.set("content-type", form.contentType);
         try {
             return await json(
@@ -343,6 +375,16 @@ export class Datalith {
         processing: VideoUploadOptions,
         options?: MutationOptions,
     ): Promise<Task<"video">>;
+    upload(
+        source: UploadSource,
+        processing?: ResourceOnlyUploadOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"resource">>;
+    upload(
+        source: UploadSource,
+        processing: AutomaticUploadOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"upload">>;
     upload(
         source: UploadSource,
         processing?: ResourceUploadOptions,
@@ -506,7 +548,7 @@ export class Datalith {
                 }
                 options.onProgress?.(task);
                 signal.throwIfAborted();
-                if (isSuccessful(task)) {
+                if (task.status === "succeeded") {
                     return task;
                 }
                 if (task.status === "failed" || task.status === "cancelled") {
@@ -543,10 +585,9 @@ export class Datalith {
                 if (failures >= retries || options.signal.aborted || !isTemporary(error)) {
                     throw error;
                 }
+                const backoff = Math.min(interval * 2 ** failures, MAX_RETRY_DELAY);
                 // oxlint-disable-next-line eslint/no-await-in-loop -- Wait before the next try.
-                await delay(Math.min(interval * 2 ** failures, MAX_RETRY_DELAY), undefined, {
-                    signal: options.signal,
-                });
+                await delay(retryDelay(error, backoff), undefined, { signal: options.signal });
                 failures++;
                 continue;
             }
@@ -572,6 +613,11 @@ export class Datalith {
         processing: VideoUploadOptions,
         options?: MutationOptions & WaitOptions,
     ): Promise<HlsVideoMedia>;
+    uploadAndWait(
+        source: UploadSource,
+        processing?: ResourceOnlyUploadOptions,
+        options?: MutationOptions & WaitOptions,
+    ): Promise<ResourceMedia>;
     uploadAndWait(
         source: UploadSource,
         processing?: UploadOptions,
@@ -626,7 +672,10 @@ export class Datalith {
                     yield item;
                 }
             }
-            if (result.items.length < result.perPage) {
+            if (
+                result.items.length < result.perPage ||
+                result.page * result.perPage >= result.total
+            ) {
                 return;
             }
             page++;

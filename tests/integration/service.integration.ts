@@ -216,7 +216,7 @@ describe("Datalith service → SDK → application → nginx", () => {
     it("processes images and audio using the new media options", async () => {
         const path = new URL("../data/image.png", import.meta.url);
         const saved = await datalith.uploadAndWait(
-            createReadStream(path),
+            path,
             {
                 kind: "image",
                 fileName: "image.png",
@@ -306,7 +306,7 @@ describe("Datalith service → SDK → application → nginx", () => {
             path,
         );
         const saved = await datalith.uploadAndWait(
-            createReadStream(path),
+            path,
             {
                 kind: "video",
                 fileName: "video.mp4",

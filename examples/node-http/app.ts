@@ -4,7 +4,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { ReadableStream as NodeReadableStream } from "node:stream/web";
 
-import type { ContentFormat, Datalith, DownloadOptions } from "node-datalith";
+import type { Datalith, DownloadOptions } from "node-datalith";
 
 class BadRequestError extends Error {
     constructor(message: string) {
@@ -54,19 +54,6 @@ const decodeSegment = (value: string): string => {
     }
     return decoded;
 };
-const contentFormat = (value: string | null): ContentFormat | undefined => {
-    if (value === null) {
-        return undefined;
-    }
-    const formats: readonly ContentFormat[] = ["webp", "png", "jpeg", "gif", "aac", "m4a", "flac"];
-    for (const format of formats) {
-        if (value === format) {
-            return format;
-        }
-    }
-    throw new BadRequestError("Invalid content format.");
-};
-
 const streamResponse = async (
     upstream: Response,
     downstream: ServerResponse,
@@ -175,7 +162,7 @@ export const createConsumerServer = (options: ConsumerOptions): Server =>
                     ...download,
                     variant: url.searchParams.get("variant") ?? undefined,
                     multiplier: multiplier === null ? undefined : Number(multiplier),
-                    format: contentFormat(url.searchParams.get("format")),
+                    format: url.searchParams.get("format") ?? undefined,
                     download: url.searchParams.get("download") === "true",
                 });
             }

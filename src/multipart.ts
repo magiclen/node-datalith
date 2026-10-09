@@ -11,7 +11,7 @@ export interface Multipart {
 }
 
 export const multipart = (
-    source: UploadSource,
+    source: Exclude<UploadSource, string | URL>,
     options?: unknown,
     signal?: AbortSignal,
 ): Multipart => {

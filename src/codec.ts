@@ -319,33 +319,40 @@ export const decodeTask = (value: unknown, path = ""): Task => {
         updatedAt: field("updated_at", date),
         error: field("error", nullable(failure)),
     };
-    const result = <T>(decode: Decoder<T>): T | null => {
+    const result = <T>(
+        decode: Decoder<T>,
+    ):
+        | { status: "succeeded"; result: T }
+        | { status: Exclude<TaskStatus, "succeeded">; result: T | null } => {
         const decoded = field("result", nullable(decode));
-        if (decoded === null && base.status === "succeeded") {
-            throw new DatalithProtocolError("Expected the result of a successful task", {
-                path: child(path, "result"),
-            });
+        if (base.status === "succeeded") {
+            if (decoded === null) {
+                throw new DatalithProtocolError("Expected the result of a successful task", {
+                    path: child(path, "result"),
+                });
+            }
+            return { status: base.status, result: decoded };
         }
-        return decoded;
+        return { status: base.status, result: decoded };
     };
     const kind = field("kind", text);
     switch (kind) {
         case "upload":
-            return { ...base, kind, result: result(decodeMedia) };
+            return { ...base, kind, ...result(decodeMedia) };
         case "import":
-            return { ...base, kind, result: result(imported) };
+            return { ...base, kind, ...result(imported) };
         case "export":
-            return { ...base, kind, result: result(exported) };
+            return { ...base, kind, ...result(exported) };
         case "mp4_export":
-            return { ...base, kind, result: result(mp4) };
+            return { ...base, kind, ...result(mp4) };
         case "resource":
-            return { ...base, kind, result: result(mediaOf(kind)) };
+            return { ...base, kind, ...result(mediaOf(kind)) };
         case "image":
-            return { ...base, kind, result: result(mediaOf(kind)) };
+            return { ...base, kind, ...result(mediaOf(kind)) };
         case "audio":
-            return { ...base, kind, result: result(mediaOf(kind)) };
+            return { ...base, kind, ...result(mediaOf(kind)) };
         case "video":
-            return { ...base, kind, result: result(mediaOf(kind)) };
+            return { ...base, kind, ...result(mediaOf(kind)) };
         default:
             throw new DatalithProtocolError("Unknown task kind " + describe(kind), {
                 path: child(path, "kind"),
