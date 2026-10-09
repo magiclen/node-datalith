@@ -3,400 +3,469 @@ import type {
     AudioMedia,
     AudioVariant,
     Capabilities,
+    CropRatio,
     ExportResult,
+    ImageFormat,
     ImageVariant,
     ImageVariantSpec,
     ImportResult,
     Media,
     MediaFile,
+    MediaKind,
     Mp4ExportResult,
     Page,
     PlaybackSession,
+    ProcessingMethod,
+    ProcessingMode,
     ProcessingWarning,
     Rational,
     Task,
+    TaskStatus,
+    VideoFrameRate,
     VideoMedia,
+    VideoResolution,
     VideoVariant,
 } from "./types.ts";
 
+/** Decodes a JSON value; `path` tells where the value is, such as `items[0].file_name`. */
+type Decoder<T> = (value: unknown, path: string) => T;
+/** Decodes one field of a JSON object. */
+type Field = <T>(key: string, decode: Decoder<T>) => T;
+
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value);
-const record = (value: unknown): Record<string, unknown> => {
-    if (!isRecord(value)) {
-        throw new DatalithProtocolError("Expected a JSON object.");
-    }
-    return value;
-};
-const text = (value: unknown): string => {
-    if (typeof value !== "string") {
-        throw new DatalithProtocolError("Expected a string.");
-    }
-    return value;
-};
-const number = (value: unknown): number => {
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-        throw new DatalithProtocolError("Expected a finite number.");
-    }
-    return value;
-};
-const boolean = (value: unknown): boolean => {
-    if (typeof value !== "boolean") {
-        throw new DatalithProtocolError("Expected a boolean.");
-    }
-    return value;
-};
-const date = (value: unknown): Date => {
-    const parsed = new Date(text(value));
-    if (Number.isNaN(parsed.getTime())) {
-        throw new DatalithProtocolError("Invalid date from Datalith.");
-    }
-    return parsed;
-};
-const decimal = (value: unknown): string => {
-    const parsed = text(value);
-    if (!/^\d+$/u.test(parsed)) {
-        throw new DatalithProtocolError("Expected a decimal string.");
-    }
-    return parsed;
-};
 const isArray = (value: unknown): value is unknown[] => Array.isArray(value);
-const array = <T>(value: unknown, decode: (entry: unknown) => T): T[] => {
-    if (!isArray(value)) {
-        throw new DatalithProtocolError("Expected a JSON array.");
+const child = (path: string, key: string): string => (path === "" ? key : path + "." + key);
+const describe = (value: unknown): string =>
+    typeof value === "string" ? JSON.stringify(value) : String(value);
+
+const record = (value: unknown, path: string): Record<string, unknown> => {
+    if (!isRecord(value)) {
+        throw new DatalithProtocolError("Expected a JSON object", { path });
     }
-    return value.map(decode);
+    return value;
 };
-const nullable = <T>(value: unknown, decode: (entry: unknown) => T): T | null =>
-    value === null ? null : decode(value);
-const oneOf = <T extends string | number>(value: unknown, values: readonly T[]): T => {
-    for (const candidate of values) {
-        if (value === candidate) {
-            return candidate;
+const fields = (value: unknown, path: string): Field => {
+    const input = record(value, path);
+    return (key, decode) => decode(input[key], child(path, key));
+};
+const text = (value: unknown, path: string): string => {
+    if (typeof value !== "string") {
+        throw new DatalithProtocolError("Expected a string", { path });
+    }
+    return value;
+};
+const number = (value: unknown, path: string): number => {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new DatalithProtocolError("Expected a finite number", { path });
+    }
+    return value;
+};
+const boolean = (value: unknown, path: string): boolean => {
+    if (typeof value !== "boolean") {
+        throw new DatalithProtocolError("Expected a boolean", { path });
+    }
+    return value;
+};
+const date = (value: unknown, path: string): Date => {
+    const parsed = new Date(text(value, path));
+    if (Number.isNaN(parsed.getTime())) {
+        throw new DatalithProtocolError("Expected a date", { path });
+    }
+    return parsed;
+};
+const decimal = (value: unknown, path: string): string => {
+    const parsed = text(value, path);
+    if (!/^\d+$/u.test(parsed)) {
+        throw new DatalithProtocolError("Expected a decimal string", { path });
+    }
+    return parsed;
+};
+const array =
+    <T>(decode: Decoder<T>): Decoder<T[]> =>
+    (value, path) => {
+        if (!isArray(value)) {
+            throw new DatalithProtocolError("Expected a JSON array", { path });
         }
-    }
-    throw new DatalithProtocolError("Unknown API value: " + String(value));
+        return value.map((entry, index) => decode(entry, path + "[" + index + "]"));
+    };
+const nullable =
+    <T>(decode: Decoder<T>): Decoder<T | null> =>
+    (value, path) =>
+        value === null ? null : decode(value, path);
+// The service leaves out some fields when they have their default values.
+const optional =
+    <T>(decode: Decoder<T>): Decoder<T | undefined> =>
+    (value, path) =>
+        value === undefined ? undefined : decode(value, path);
+const oneOf =
+    <T extends string | number>(values: readonly T[]): Decoder<T> =>
+    (value, path) => {
+        for (const candidate of values) {
+            if (value === candidate) {
+                return candidate;
+            }
+        }
+        throw new DatalithProtocolError("Unknown value " + describe(value), { path });
+    };
+const method = oneOf<ProcessingMethod>(["unknown", "copied", "remuxed", "transcoded"]);
+const mode = oneOf<ProcessingMode>(["transcode", "trust"]);
+const format = oneOf<ImageFormat>(["webp", "png", "jpeg", "gif"]);
+const resolution = oneOf<VideoResolution>([
+    144, 240, 360, 432, 480, 540, 576, 720, 900, 1080, 1440, 2160,
+]);
+const fps = oneOf<VideoFrameRate>([10, 12, 15, 20, 24, 25, 30, 48, 50, 60]);
+
+const rational = (value: unknown, path: string): Rational => {
+    const field = fields(value, path);
+    return { numerator: field("numerator", number), denominator: field("denominator", number) };
 };
-const method = (value: unknown): "unknown" | "copied" | "remuxed" | "transcoded" =>
-    oneOf(value, ["unknown", "copied", "remuxed", "transcoded"]);
-const modes = (entry: unknown): "transcode" | "trust" => oneOf(entry, ["transcode", "trust"]);
-const format = (value: unknown): "webp" | "png" | "jpeg" | "gif" =>
-    oneOf(value, ["webp", "png", "jpeg", "gif"]);
-const resolution = (value: unknown): VideoVariant["resolution"] =>
-    oneOf(value, [144, 240, 360, 432, 480, 540, 576, 720, 900, 1080, 1440, 2160]);
-const fps = (value: unknown): VideoVariant["fps"] =>
-    oneOf(value, [10, 12, 15, 20, 24, 25, 30, 48, 50, 60]);
-const rational = (value: unknown): Rational => {
-    const input = record(value);
-    return { numerator: number(input["numerator"]), denominator: number(input["denominator"]) };
-};
-const file = (value: unknown): MediaFile => {
-    const input = record(value);
+const file = (value: unknown, path: string): MediaFile => {
+    const field = fields(value, path);
     return {
-        id: text(input["id"]),
-        sha256: text(input["sha256"]),
-        fileSize: decimal(input["file_size"]),
-        fileType: text(input["file_type"]),
-        fileName: text(input["file_name"]),
+        id: field("id", text),
+        sha256: field("sha256", text),
+        fileSize: field("file_size", decimal),
+        fileType: field("file_type", text),
+        fileName: field("file_name", text),
     };
 };
-const recipe = (value: unknown): ImageVariantSpec => {
-    const input = record(value);
+const crop = (value: unknown, path: string): CropRatio => {
+    const field = fields(value, path);
+    return { width: field("width", number), height: field("height", number) };
+};
+const recipe = (value: unknown, path: string): ImageVariantSpec => {
+    const field = fields(value, path);
     return {
-        name: text(input["name"]),
-        maxWidth: nullable(input["max_width"], number),
-        maxHeight: nullable(input["max_height"], number),
-        crop: nullable(input["crop"], (entry) => {
-            const crop = record(entry);
-            return { width: number(crop["width"]), height: number(crop["height"]) };
-        }),
-        multipliers: array(input["multipliers"], number),
+        name: field("name", text),
+        maxWidth: field("max_width", nullable(number)),
+        maxHeight: field("max_height", nullable(number)),
+        crop: field("crop", nullable(crop)),
+        multipliers: field("multipliers", array(number)),
     };
 };
-const imageVariant = (value: unknown): ImageVariant => {
-    const input = record(value);
+const imageVariant = (value: unknown, path: string): ImageVariant => {
+    const field = fields(value, path);
+    const processingMethod = field("processing_method", optional(method));
     return {
-        ...(input["processing_method"] === undefined
-            ? {}
-            : { processingMethod: method(input["processing_method"]) }),
-        name: text(input["name"]),
-        multiplier: number(input["multiplier"]),
-        format: format(input["format"]),
-        width: number(input["width"]),
-        height: number(input["height"]),
-        animated: boolean(input["animated"]),
-        file: file(input["file"]),
-        contentPath: text(input["content_path"]),
-        recipe: nullable(input["recipe"], recipe),
+        ...(processingMethod === undefined ? {} : { processingMethod }),
+        name: field("name", text),
+        multiplier: field("multiplier", number),
+        format: field("format", format),
+        width: field("width", number),
+        height: field("height", number),
+        animated: field("animated", boolean),
+        file: field("file", file),
+        contentPath: field("content_path", text),
+        recipe: field("recipe", nullable(recipe)),
     };
 };
-const audioVariant = (value: unknown): AudioVariant => {
-    const input = record(value);
+const audioVariant = (value: unknown, path: string): AudioVariant => {
+    const field = fields(value, path);
     return {
-        id: text(input["id"]),
-        codec: oneOf(input["codec"], ["aac", "flac"]),
-        bitrate: number(input["bitrate"]),
-        sampleRate: number(input["sample_rate"]),
-        channels: number(input["channels"]),
-        bitsPerSample: nullable(input["bits_per_sample"], number),
-        processingMethod: method(input["processing_method"]),
-        file: nullable(input["file"], file),
-        contentPath: text(input["content_path"]),
+        id: field("id", text),
+        codec: field("codec", oneOf(["aac", "flac"])),
+        bitrate: field("bitrate", number),
+        sampleRate: field("sample_rate", number),
+        channels: field("channels", number),
+        bitsPerSample: field("bits_per_sample", nullable(number)),
+        processingMethod: field("processing_method", method),
+        file: field("file", nullable(file)),
+        contentPath: field("content_path", text),
     };
 };
-const audio = (value: unknown): AudioMedia => {
-    const input = record(value);
+const audio = (value: unknown, path: string): AudioMedia => {
+    const field = fields(value, path);
     return {
-        durationSeconds: number(input["duration_seconds"]),
-        variants: array(input["variants"], audioVariant),
+        durationSeconds: field("duration_seconds", number),
+        variants: field("variants", array(audioVariant)),
     };
 };
-const videoVariant = (value: unknown): VideoVariant => {
-    const input = record(value);
+const videoVariant = (value: unknown, path: string): VideoVariant => {
+    const field = fields(value, path);
+    const leadingHoldSeconds = field("leading_hold_seconds", optional(number));
     return {
-        id: text(input["id"]),
-        resolution: resolution(input["resolution"]),
-        width: number(input["width"]),
-        height: number(input["height"]),
-        fps: fps(input["fps"]),
-        frameRate: rational(input["frame_rate"]),
-        ...(input["leading_hold_seconds"] === undefined
-            ? {}
-            : { leadingHoldSeconds: number(input["leading_hold_seconds"]) }),
-        codec: text(input["codec"]),
-        processingMethod: method(input["processing_method"]),
-        playlistPath: text(input["playlist_path"]),
-        audio: array(input["audio"], text),
+        id: field("id", text),
+        resolution: field("resolution", resolution),
+        width: field("width", number),
+        height: field("height", number),
+        fps: field("fps", fps),
+        frameRate: field("frame_rate", rational),
+        ...(leadingHoldSeconds === undefined ? {} : { leadingHoldSeconds }),
+        codec: field("codec", text),
+        processingMethod: field("processing_method", method),
+        playlistPath: field("playlist_path", text),
+        audio: field("audio", array(text)),
     };
 };
-const video = (value: unknown): VideoMedia => {
-    const input = record(value);
+const video = (value: unknown, path: string): VideoMedia => {
+    const field = fields(value, path);
     return {
-        durationSeconds: number(input["duration_seconds"]),
-        variants: array(input["variants"], videoVariant),
-        audio: array(input["audio"], audioVariant),
-        masterPath: text(input["master_path"]),
+        durationSeconds: field("duration_seconds", number),
+        variants: field("variants", array(videoVariant)),
+        audio: field("audio", array(audioVariant)),
+        masterPath: field("master_path", text),
     };
 };
-const warning = (value: unknown): ProcessingWarning => {
-    const input = record(value);
-    return { code: text(input["code"]), message: text(input["message"]) };
+const warning = (value: unknown, path: string): ProcessingWarning => {
+    const field = fields(value, path);
+    return { code: field("code", text), message: field("message", text) };
 };
 
-export const decodeMedia = (value: unknown): Media => {
-    const input = record(value);
+export const decodeMedia = (value: unknown, path = ""): Media => {
+    const field = fields(value, path);
+    const audioSummary = field("audio", optional(audio));
+    const videoSummary = field("video", optional(video));
+    const warnings = field("warnings", optional(array(warning)));
     const base = {
-        id: text(input["id"]),
-        createdAt: date(input["created_at"]),
-        fileName: text(input["file_name"]),
-        original: nullable(input["original"], file),
-        variants: array(input["variants"], imageVariant),
-        ...(input["audio"] === undefined ? {} : { audio: audio(input["audio"]) }),
-        ...(input["video"] === undefined ? {} : { video: video(input["video"]) }),
-        ...(input["warnings"] === undefined ? {} : { warnings: array(input["warnings"], warning) }),
-        expiresAt: nullable(input["expires_at"], date),
-        singleUse: boolean(input["single_use"]),
-        consumedAt: nullable(input["consumed_at"], date),
-        animated: boolean(input["animated"]),
-        frameCount: number(input["frame_count"]),
+        id: field("id", text),
+        createdAt: field("created_at", date),
+        fileName: field("file_name", text),
+        original: field("original", nullable(file)),
+        variants: field("variants", array(imageVariant)),
+        ...(audioSummary === undefined ? {} : { audio: audioSummary }),
+        ...(videoSummary === undefined ? {} : { video: videoSummary }),
+        ...(warnings === undefined ? {} : { warnings }),
+        expiresAt: field("expires_at", nullable(date)),
+        singleUse: field("single_use", boolean),
+        consumedAt: field("consumed_at", nullable(date)),
+        animated: field("animated", boolean),
+        frameCount: field("frame_count", number),
     };
-    switch (input["kind"]) {
+    const kind = field("kind", text);
+    switch (kind) {
         case "resource":
-            return { ...base, kind: "resource" };
+            return { ...base, kind };
         case "image":
-            return { ...base, kind: "image" };
+            return { ...base, kind };
         case "audio":
-            return { ...base, kind: "audio", audio: audio(input["audio"]) };
+            return { ...base, kind, audio: field("audio", audio) };
         case "video":
-            return { ...base, kind: "video", video: video(input["video"]) };
+            return { ...base, kind, video: field("video", video) };
         default:
-            throw new DatalithProtocolError("Unknown media kind.");
+            throw new DatalithProtocolError("Unknown media kind " + describe(kind), {
+                path: child(path, "kind"),
+            });
     }
 };
-const dictionary = (value: unknown): Record<string, string> =>
-    Object.fromEntries(Object.entries(record(value)).map(([key, entry]) => [key, text(entry)]));
-const imported = (value: unknown): ImportResult => {
-    const input = record(value);
-    return {
-        archiveId: text(input["archive_id"]),
-        imported: number(input["imported"]),
-        skipped: number(input["skipped"]),
-        idMap: dictionary(input["id_map"]),
-        fileIdMap: dictionary(input["file_id_map"]),
+const isKind = <K extends MediaKind>(media: Media, kind: K): media is Extract<Media, { kind: K }> =>
+    media.kind === kind;
+// A task for one media kind must create media of that kind.
+const mediaOf =
+    <K extends MediaKind>(kind: K): Decoder<Extract<Media, { kind: K }>> =>
+    (value, path) => {
+        const media = decodeMedia(value, path);
+        if (!isKind(media, kind)) {
+            throw new DatalithProtocolError("Expected " + kind + " media", {
+                path: child(path, "kind"),
+            });
+        }
+        return media;
     };
-};
-const exported = (value: unknown): ExportResult => {
-    const input = record(value);
-    return {
-        artifactPath: text(input["artifact_path"]),
-        mediaCount: number(input["media_count"]),
-        artifact: file(input["artifact"]),
-    };
-};
-const mp4 = (value: unknown): Mp4ExportResult => {
-    const input = record(value);
-    return {
-        mediaId: text(input["media_id"]),
-        variant: text(input["variant"]),
-        audio: nullable(input["audio"], (entry) => oneOf(entry, ["aac_low", "aac_high", "flac"])),
-        artifact: file(input["artifact"]),
-        artifactPath: text(input["artifact_path"]),
-        expiresAt: date(input["expires_at"]),
-    };
-};
-export const decodeTask = (value: unknown): Task => {
-    const input = record(value);
-    const base = {
-        id: text(input["id"]),
-        status: oneOf(input["status"], [
-            "queued",
-            "running",
-            "cancelling",
-            "succeeded",
-            "failed",
-            "cancelled",
+const dictionary = (value: unknown, path: string): Record<string, string> =>
+    Object.fromEntries(
+        Object.entries(record(value, path)).map(([key, entry]) => [
+            key,
+            text(entry, child(path, key)),
         ]),
-        stage: text(input["stage"]),
-        completedUnits: number(input["completed_units"]),
-        totalUnits: nullable(input["total_units"], number),
-        attempt: number(input["attempt"]),
-        createdAt: date(input["created_at"]),
-        updatedAt: date(input["updated_at"]),
-        error: nullable(input["error"], warning),
+    );
+const imported = (value: unknown, path: string): ImportResult => {
+    const field = fields(value, path);
+    return {
+        archiveId: field("archive_id", text),
+        imported: field("imported", number),
+        skipped: field("skipped", number),
+        idMap: field("id_map", dictionary),
+        fileIdMap: field("file_id_map", dictionary),
     };
-    if (base.status === "succeeded" && input["result"] === null) {
-        throw new DatalithProtocolError("A successful task has no result.");
-    }
-    switch (input["kind"]) {
+};
+const exported = (value: unknown, path: string): ExportResult => {
+    const field = fields(value, path);
+    return {
+        artifactPath: field("artifact_path", text),
+        mediaCount: field("media_count", number),
+        artifact: field("artifact", file),
+    };
+};
+const mp4 = (value: unknown, path: string): Mp4ExportResult => {
+    const field = fields(value, path);
+    return {
+        mediaId: field("media_id", text),
+        variant: field("variant", text),
+        audio: field("audio", nullable(oneOf(["aac_low", "aac_high", "flac"]))),
+        artifact: field("artifact", file),
+        artifactPath: field("artifact_path", text),
+        expiresAt: field("expires_at", date),
+    };
+};
+export const decodeTask = (value: unknown, path = ""): Task => {
+    const field = fields(value, path);
+    const base = {
+        id: field("id", text),
+        status: field(
+            "status",
+            oneOf<TaskStatus>([
+                "queued",
+                "running",
+                "cancelling",
+                "succeeded",
+                "failed",
+                "cancelled",
+            ]),
+        ),
+        stage: field("stage", text),
+        completedUnits: field("completed_units", number),
+        totalUnits: field("total_units", nullable(number)),
+        attempt: field("attempt", number),
+        createdAt: field("created_at", date),
+        updatedAt: field("updated_at", date),
+        error: field("error", nullable(warning)),
+    };
+    const result = <T>(decode: Decoder<T>): T | null => {
+        const decoded = field("result", nullable(decode));
+        if (decoded === null && base.status === "succeeded") {
+            throw new DatalithProtocolError("Expected the result of a successful task", {
+                path: child(path, "result"),
+            });
+        }
+        return decoded;
+    };
+    const kind = field("kind", text);
+    switch (kind) {
         case "upload":
-            return { ...base, kind: "upload", result: nullable(input["result"], decodeMedia) };
+            return { ...base, kind, result: result(decodeMedia) };
         case "import":
-            return { ...base, kind: "import", result: nullable(input["result"], imported) };
+            return { ...base, kind, result: result(imported) };
         case "export":
-            return { ...base, kind: "export", result: nullable(input["result"], exported) };
+            return { ...base, kind, result: result(exported) };
         case "mp4_export":
-            return { ...base, kind: "mp4_export", result: nullable(input["result"], mp4) };
-        case "resource": {
-            const result = nullable(input["result"], decodeMedia);
-            if (result !== null && result.kind !== "resource") {
-                throw new DatalithProtocolError("Unexpected resource result.");
-            }
-            return { ...base, kind: "resource", result };
-        }
-        case "image": {
-            const result = nullable(input["result"], decodeMedia);
-            if (result !== null && result.kind !== "image") {
-                throw new DatalithProtocolError("Unexpected image result.");
-            }
-            return { ...base, kind: "image", result };
-        }
-        case "audio": {
-            const result = nullable(input["result"], decodeMedia);
-            if (result !== null && result.kind !== "audio") {
-                throw new DatalithProtocolError("Unexpected audio result.");
-            }
-            return { ...base, kind: "audio", result };
-        }
-        case "video": {
-            const result = nullable(input["result"], decodeMedia);
-            if (result !== null && result.kind !== "video") {
-                throw new DatalithProtocolError("Unexpected video result.");
-            }
-            return { ...base, kind: "video", result };
-        }
+            return { ...base, kind, result: result(mp4) };
+        case "resource":
+            return { ...base, kind, result: result(mediaOf(kind)) };
+        case "image":
+            return { ...base, kind, result: result(mediaOf(kind)) };
+        case "audio":
+            return { ...base, kind, result: result(mediaOf(kind)) };
+        case "video":
+            return { ...base, kind, result: result(mediaOf(kind)) };
         default:
-            throw new DatalithProtocolError("Unknown task kind.");
+            throw new DatalithProtocolError("Unknown task kind " + describe(kind), {
+                path: child(path, "kind"),
+            });
     }
 };
-export const decodePage = (value: unknown): Page<Media> => {
-    const input = record(value);
+export const decodePage = (value: unknown, path = ""): Page<Media> => {
+    const field = fields(value, path);
     return {
-        items: array(input["items"], decodeMedia),
-        page: number(input["page"]),
-        perPage: number(input["per_page"]),
-        total: decimal(input["total"]),
+        items: field("items", array(decodeMedia)),
+        page: field("page", number),
+        perPage: field("per_page", number),
+        total: field("total", decimal),
     };
 };
-export const decodeSession = (value: unknown): PlaybackSession => {
-    const input = record(value);
-    return { token: text(input["token"]), expiresAt: date(input["expires_at"]) };
+export const decodeSession = (value: unknown, path = ""): PlaybackSession => {
+    const field = fields(value, path);
+    return { token: field("token", text), expiresAt: field("expires_at", date) };
 };
-export const decodeCapabilities = (value: unknown): Capabilities => {
-    const input = record(value);
-    const media = record(input["media"]);
-    const image = record(input["image"]);
-    const limits = record(image["limits"]);
-    const av = record(input["av"]);
-    const sound = record(input["audio"]);
-    const movie = record(input["video"]);
-    const session = record(input["playback_sessions"]);
+
+const mediaCapabilities = (value: unknown, path: string): Capabilities["media"] => {
+    const field = fields(value, path);
     return {
-        apiVersion: text(input["api_version"]),
-        version: text(input["version"]),
-        media: {
-            resource: boolean(media["resource"]),
-            image: boolean(media["image"]),
-            audio: boolean(media["audio"]),
-            video: boolean(media["video"]),
-        },
-        image: {
-            engine: text(image["engine"]),
-            animatedInputs: array(image["animated_inputs"], text),
-            outputs: array(image["outputs"], format),
-            apngRequiresFfmpeg: boolean(image["apng_requires_ffmpeg"]),
-            apngTimingPrecisionMs: number(image["apng_timing_precision_ms"]),
-            limits: {
-                maxPixels: number(limits["max_pixels"]),
-                maxFrames: number(limits["max_frames"]),
-                maxTotalPixels: number(limits["max_total_pixels"]),
-                maxVariants: number(limits["max_variants"]),
-                maxMultiplier: number(limits["max_multiplier"]),
-            },
-            processingModes: array(image["processing_modes"], modes),
-            saveOriginalDefault: boolean(image["save_original_default"]),
-        },
-        av: {
-            available: boolean(av["available"]),
-            minimumToolMajor: number(av["minimum_tool_major"]),
-            audioEncoder: boolean(av["audio_encoder"]),
-            videoEncoder: boolean(av["video_encoder"]),
-            flacEncoder: boolean(av["flac_encoder"]),
-            unavailableReason: nullable(av["unavailable_reason"], text),
-        },
-        audio: {
-            engine: text(sound["engine"]),
-            profiles: array(sound["profiles"], text),
-            aacSampleRate: number(sound["aac_sample_rate"]),
-            aacBitrates: array(sound["aac_bitrates"], number),
-            mp3Fallback: boolean(sound["mp3_fallback"]),
-            saveOriginalDefault: boolean(sound["save_original_default"]),
-            processingModes: array(sound["processing_modes"], modes),
-            selectedAudioStreams: number(sound["selected_audio_streams"]),
-        },
-        video: {
-            engine: text(movie["engine"]),
-            codec: text(movie["codec"]),
-            pixelFormat: text(movie["pixel_format"]),
-            delivery: text(movie["delivery"]),
-            requiresVariants: boolean(movie["requires_variants"]),
-            resolutionTiers: array(movie["resolution_tiers"], resolution),
-            frameRateTiers: array(movie["frame_rate_tiers"], fps),
-            bitrate: number(movie["bitrate"]),
-            bitrateUnit: text(movie["bitrate_unit"]),
-            saveOriginalDefault: boolean(movie["save_original_default"]),
-            processingModes: array(movie["processing_modes"], modes),
-            mp4Export: boolean(movie["mp4_export"]),
-        },
-        playbackSessions: {
-            seconds: number(session["seconds"]),
-            singleUseSemantics: text(session["single_use_semantics"]),
-        },
-        maxFileSize: decimal(input["max_file_size"]),
-        taskRetentionSeconds: number(input["task_retention_seconds"]),
-        taskNotifications: array(input["task_notifications"], text),
-        cancellation: text(input["cancellation"]),
-        archiveVersion: number(input["archive_version"]),
-        exportPausesWrites: boolean(input["export_pauses_writes"]),
-        mp4ExportRetentionSeconds: number(input["mp4_export_retention_seconds"]),
+        resource: field("resource", boolean),
+        image: field("image", boolean),
+        audio: field("audio", boolean),
+        video: field("video", boolean),
+    };
+};
+const imageLimits = (value: unknown, path: string): Capabilities["image"]["limits"] => {
+    const field = fields(value, path);
+    return {
+        maxPixels: field("max_pixels", number),
+        maxFrames: field("max_frames", number),
+        maxTotalPixels: field("max_total_pixels", number),
+        maxVariants: field("max_variants", number),
+        maxMultiplier: field("max_multiplier", number),
+    };
+};
+const imageCapabilities = (value: unknown, path: string): Capabilities["image"] => {
+    const field = fields(value, path);
+    return {
+        engine: field("engine", text),
+        animatedInputs: field("animated_inputs", array(text)),
+        outputs: field("outputs", array(format)),
+        apngRequiresFfmpeg: field("apng_requires_ffmpeg", boolean),
+        apngTimingPrecisionMs: field("apng_timing_precision_ms", number),
+        limits: field("limits", imageLimits),
+        processingModes: field("processing_modes", array(mode)),
+        saveOriginalDefault: field("save_original_default", boolean),
+    };
+};
+const avCapabilities = (value: unknown, path: string): Capabilities["av"] => {
+    const field = fields(value, path);
+    return {
+        available: field("available", boolean),
+        minimumToolMajor: field("minimum_tool_major", number),
+        audioEncoder: field("audio_encoder", boolean),
+        videoEncoder: field("video_encoder", boolean),
+        flacEncoder: field("flac_encoder", boolean),
+        unavailableReason: field("unavailable_reason", nullable(text)),
+    };
+};
+const audioCapabilities = (value: unknown, path: string): Capabilities["audio"] => {
+    const field = fields(value, path);
+    return {
+        engine: field("engine", text),
+        profiles: field("profiles", array(text)),
+        aacSampleRate: field("aac_sample_rate", number),
+        aacBitrates: field("aac_bitrates", array(number)),
+        mp3Fallback: field("mp3_fallback", boolean),
+        saveOriginalDefault: field("save_original_default", boolean),
+        processingModes: field("processing_modes", array(mode)),
+        selectedAudioStreams: field("selected_audio_streams", number),
+    };
+};
+const videoCapabilities = (value: unknown, path: string): Capabilities["video"] => {
+    const field = fields(value, path);
+    return {
+        engine: field("engine", text),
+        codec: field("codec", text),
+        pixelFormat: field("pixel_format", text),
+        delivery: field("delivery", text),
+        requiresVariants: field("requires_variants", boolean),
+        resolutionTiers: field("resolution_tiers", array(resolution)),
+        frameRateTiers: field("frame_rate_tiers", array(fps)),
+        bitrate: field("bitrate", number),
+        bitrateUnit: field("bitrate_unit", text),
+        saveOriginalDefault: field("save_original_default", boolean),
+        processingModes: field("processing_modes", array(mode)),
+        mp4Export: field("mp4_export", boolean),
+    };
+};
+const sessionCapabilities = (value: unknown, path: string): Capabilities["playbackSessions"] => {
+    const field = fields(value, path);
+    return {
+        seconds: field("seconds", number),
+        singleUseSemantics: field("single_use_semantics", text),
+    };
+};
+export const decodeCapabilities = (value: unknown, path = ""): Capabilities => {
+    const field = fields(value, path);
+    return {
+        apiVersion: field("api_version", text),
+        version: field("version", text),
+        media: field("media", mediaCapabilities),
+        image: field("image", imageCapabilities),
+        av: field("av", avCapabilities),
+        audio: field("audio", audioCapabilities),
+        video: field("video", videoCapabilities),
+        playbackSessions: field("playback_sessions", sessionCapabilities),
+        maxFileSize: field("max_file_size", decimal),
+        taskRetentionSeconds: field("task_retention_seconds", number),
+        taskNotifications: field("task_notifications", array(text)),
+        cancellation: field("cancellation", text),
+        archiveVersion: field("archive_version", number),
+        exportPausesWrites: field("export_pauses_writes", boolean),
+        mp4ExportRetentionSeconds: field("mp4_export_retention_seconds", number),
     };
 };
 

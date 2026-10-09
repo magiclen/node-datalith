@@ -214,7 +214,7 @@ Use null to turn off a timeout.
 
 `DatalithError` holds the HTTP status, service code, requestId, and retryAfter.
 `TaskError` holds the Task, and `TaskWaitTimeoutError` holds the taskId.
-`DatalithProtocolError` means the service data does not match the API.
+`DatalithProtocolError` means the service data does not match the API; its `path` shows where, such as `items[0].file_name`.
 The package also exports `TimeoutError`, `isTimeoutError`, and `isAbortError`.
 
 ## Development

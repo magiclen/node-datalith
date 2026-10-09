@@ -14,11 +14,25 @@ export class DatalithError extends Error {
     }
 }
 
+/** Options for `DatalithProtocolError`. */
+export interface DatalithProtocolErrorOptions extends ErrorOptions {
+    /** Where the data does not match, such as `items[0].file_name`. */
+    path?: string;
+}
+
 /** The service sent data that does not match its API. */
 export class DatalithProtocolError extends Error {
-    constructor(message: string) {
-        super(message);
+    /**
+     * Where the data does not match, such as `items[0].file_name`; it is empty for the whole
+     * response.
+     */
+    readonly path: string;
+
+    constructor(reason: string, options: DatalithProtocolErrorOptions = {}) {
+        const path = options.path ?? "";
+        super(path === "" ? reason + "." : reason + " at " + path + ".", options);
         this.name = "DatalithProtocolError";
+        this.path = path;
     }
 }
 
