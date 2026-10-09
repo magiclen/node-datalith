@@ -10,6 +10,8 @@ import { Datalith, DatalithError, TaskError, TaskWaitTimeoutError } from "../src
 import type { ExportResult } from "../src/index.ts";
 
 const ID = "ab975c7a-f924-4415-a312-772f4fc61b71";
+const IMAGE_ID = "5a0c2e77-1f43-4c55-9a51-0d3f6c8e2b14";
+const VIDEO_ID = "c3d9b0f1-6a2e-4b7d-8e15-2f4a9c6d7e80";
 const created = "2026-10-08T00:00:00.000Z";
 const file = {
     id: ID,
@@ -30,6 +32,69 @@ const media = {
     consumed_at: null,
     animated: false,
     frame_count: 0,
+};
+// The service leaves out `processing_method` for older outputs.
+const imageMedia = {
+    ...media,
+    id: IMAGE_ID,
+    kind: "image",
+    variants: [
+        {
+            name: "small",
+            multiplier: 1,
+            format: "webp",
+            width: 128,
+            height: 96,
+            animated: false,
+            file,
+            content_path: "media/" + IMAGE_ID + "/content?variant=small&multiplier=1&format=webp",
+            recipe: {
+                name: "small",
+                max_width: 128,
+                max_height: null,
+                crop: null,
+                multipliers: [1],
+            },
+        },
+    ],
+};
+// The service leaves out `leading_hold_seconds` when it is zero.
+const videoMedia = {
+    ...media,
+    id: VIDEO_ID,
+    kind: "video",
+    original: null,
+    video: {
+        duration_seconds: 2,
+        variants: [
+            {
+                id: "144p12",
+                resolution: 144,
+                width: 256,
+                height: 144,
+                fps: 12,
+                frame_rate: { numerator: 12, denominator: 1 },
+                codec: "avc1.64000c",
+                processing_method: "transcoded",
+                playlist_path: "media/" + VIDEO_ID + "/hls/144p12/index.m3u8",
+                audio: ["aac_low"],
+            },
+        ],
+        audio: [
+            {
+                id: "aac_low",
+                codec: "aac",
+                bitrate: 128000,
+                sample_rate: 48000,
+                channels: 2,
+                bits_per_sample: null,
+                processing_method: "transcoded",
+                file: null,
+                content_path: "media/" + VIDEO_ID + "/hls/aac_low/index.m3u8",
+            },
+        ],
+        master_path: "media/" + VIDEO_ID + "/hls/master.m3u8",
+    },
 };
 const task = (
     status = "queued",
@@ -104,6 +169,10 @@ describe("Datalith client", () => {
             send(response, 202, task("cancelled"));
         } else if (path === "tasks/" + ID + "/retry") {
             send(response, 202, task());
+        } else if (path === "media/" + IMAGE_ID) {
+            send(response, 200, imageMedia);
+        } else if (path === "media/" + VIDEO_ID) {
+            send(response, 200, videoMedia);
         } else if (path === "media/" + ID) {
             if (request.method === "DELETE") {
                 response.writeHead(204);
@@ -237,6 +306,24 @@ describe("Datalith client", () => {
         assert.equal(await datalith.deleteMedia("missing"), false);
         assert.equal(await datalith.getMedia("missing"), null);
         assert.equal(await datalith.getTask("missing"), null);
+    });
+
+    it("fills in fields that the service leaves out", async () => {
+        const image = await datalith.getMedia(IMAGE_ID);
+        assert.ok(image?.kind === "image");
+        assert.deepEqual(image.warnings, []);
+        assert.equal(image.variants[0].processingMethod, "unknown");
+        assert.deepEqual(image.variants[0].recipe, {
+            name: "small",
+            maxWidth: 128,
+            maxHeight: null,
+            crop: null,
+            multipliers: [1],
+        });
+        const video = await datalith.getMedia(VIDEO_ID);
+        assert.ok(video?.kind === "video");
+        assert.equal(video.video.variants[0].leadingHoldSeconds, 0);
+        assert.equal(video.audio, undefined);
     });
 
     it("preserves download responses, ranges, conditions and upstream URLs", async () => {

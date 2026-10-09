@@ -6,8 +6,8 @@ import type {
     CropRatio,
     ExportResult,
     ImageFormat,
+    ImageRecipe,
     ImageVariant,
-    ImageVariantSpec,
     ImportResult,
     Media,
     MediaFile,
@@ -20,6 +20,7 @@ import type {
     ProcessingWarning,
     Rational,
     Task,
+    TaskFailure,
     TaskStatus,
     VideoFrameRate,
     VideoMedia,
@@ -95,9 +96,9 @@ const nullable =
         value === null ? null : decode(value, path);
 // The service leaves out some fields when they have their default values.
 const optional =
-    <T>(decode: Decoder<T>): Decoder<T | undefined> =>
+    <T>(decode: Decoder<T>, fallback: T): Decoder<T> =>
     (value, path) =>
-        value === undefined ? undefined : decode(value, path);
+        value === undefined ? fallback : decode(value, path);
 const oneOf =
     <T extends string | number>(values: readonly T[]): Decoder<T> =>
     (value, path) => {
@@ -134,7 +135,7 @@ const crop = (value: unknown, path: string): CropRatio => {
     const field = fields(value, path);
     return { width: field("width", number), height: field("height", number) };
 };
-const recipe = (value: unknown, path: string): ImageVariantSpec => {
+const recipe = (value: unknown, path: string): ImageRecipe => {
     const field = fields(value, path);
     return {
         name: field("name", text),
@@ -146,9 +147,8 @@ const recipe = (value: unknown, path: string): ImageVariantSpec => {
 };
 const imageVariant = (value: unknown, path: string): ImageVariant => {
     const field = fields(value, path);
-    const processingMethod = field("processing_method", optional(method));
     return {
-        ...(processingMethod === undefined ? {} : { processingMethod }),
+        processingMethod: field("processing_method", optional(method, "unknown")),
         name: field("name", text),
         multiplier: field("multiplier", number),
         format: field("format", format),
@@ -183,7 +183,6 @@ const audio = (value: unknown, path: string): AudioMedia => {
 };
 const videoVariant = (value: unknown, path: string): VideoVariant => {
     const field = fields(value, path);
-    const leadingHoldSeconds = field("leading_hold_seconds", optional(number));
     return {
         id: field("id", text),
         resolution: field("resolution", resolution),
@@ -191,7 +190,7 @@ const videoVariant = (value: unknown, path: string): VideoVariant => {
         height: field("height", number),
         fps: field("fps", fps),
         frameRate: field("frame_rate", rational),
-        ...(leadingHoldSeconds === undefined ? {} : { leadingHoldSeconds }),
+        leadingHoldSeconds: field("leading_hold_seconds", optional(number, 0)),
         codec: field("codec", text),
         processingMethod: field("processing_method", method),
         playlistPath: field("playlist_path", text),
@@ -211,21 +210,20 @@ const warning = (value: unknown, path: string): ProcessingWarning => {
     const field = fields(value, path);
     return { code: field("code", text), message: field("message", text) };
 };
+const failure = (value: unknown, path: string): TaskFailure => {
+    const field = fields(value, path);
+    return { code: field("code", text), message: field("message", text) };
+};
 
 export const decodeMedia = (value: unknown, path = ""): Media => {
     const field = fields(value, path);
-    const audioSummary = field("audio", optional(audio));
-    const videoSummary = field("video", optional(video));
-    const warnings = field("warnings", optional(array(warning)));
     const base = {
         id: field("id", text),
         createdAt: field("created_at", date),
         fileName: field("file_name", text),
         original: field("original", nullable(file)),
         variants: field("variants", array(imageVariant)),
-        ...(audioSummary === undefined ? {} : { audio: audioSummary }),
-        ...(videoSummary === undefined ? {} : { video: videoSummary }),
-        ...(warnings === undefined ? {} : { warnings }),
+        warnings: field("warnings", optional(array(warning), [])),
         expiresAt: field("expires_at", nullable(date)),
         singleUse: field("single_use", boolean),
         consumedAt: field("consumed_at", nullable(date)),
@@ -319,7 +317,7 @@ export const decodeTask = (value: unknown, path = ""): Task => {
         attempt: field("attempt", number),
         createdAt: field("created_at", date),
         updatedAt: field("updated_at", date),
-        error: field("error", nullable(warning)),
+        error: field("error", nullable(failure)),
     };
     const result = <T>(decode: Decoder<T>): T | null => {
         const decoded = field("result", nullable(decode));

@@ -58,6 +58,7 @@ Use streaming for large files.
 Use `getMedia` and `listMedia` to read metadata, and `deleteMedia` to delete an item.
 Missing items return null from `getMedia` and `getTask`, or false from `deleteMedia`.
 Data fields use camelCase and Date objects.
+Fields that the service leaves out get their default values, such as an empty `warnings` list.
 File sizes and list totals stay decimal strings; use BigInt for large values.
 
 ## Tasks

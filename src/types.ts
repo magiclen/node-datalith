@@ -99,8 +99,17 @@ export interface MediaFile {
     readonly fileType: string;
     readonly fileName: string;
 }
+/** The recipe that created an image output, with every setting filled in. */
+export interface ImageRecipe {
+    readonly name: string;
+    readonly maxWidth: number | null;
+    readonly maxHeight: number | null;
+    readonly crop: Readonly<CropRatio> | null;
+    readonly multipliers: readonly number[];
+}
 export interface ImageVariant {
-    readonly processingMethod?: ProcessingMethod;
+    /** Older stored outputs use `unknown`. */
+    readonly processingMethod: ProcessingMethod;
     readonly name: string;
     readonly multiplier: number;
     readonly format: ImageFormat;
@@ -109,7 +118,7 @@ export interface ImageVariant {
     readonly animated: boolean;
     readonly file: MediaFile;
     readonly contentPath: string;
-    readonly recipe: ImageVariantSpec | null;
+    readonly recipe: ImageRecipe | null;
 }
 export interface Rational {
     readonly numerator: number;
@@ -137,7 +146,7 @@ export interface VideoVariant {
     readonly height: number;
     readonly fps: VideoFrameRate;
     readonly frameRate: Rational;
-    readonly leadingHoldSeconds?: number;
+    readonly leadingHoldSeconds: number;
     readonly codec: string;
     readonly processingMethod: ProcessingMethod;
     readonly playlistPath: string;
@@ -159,9 +168,7 @@ interface MediaBase {
     readonly fileName: string;
     readonly original: MediaFile | null;
     readonly variants: readonly ImageVariant[];
-    readonly audio?: AudioMedia;
-    readonly video?: VideoMedia;
-    readonly warnings?: readonly ProcessingWarning[];
+    readonly warnings: readonly ProcessingWarning[];
     readonly expiresAt: Date | null;
     readonly singleUse: boolean;
     readonly consumedAt: Date | null;
@@ -170,16 +177,22 @@ interface MediaBase {
 }
 export interface ResourceMedia extends MediaBase {
     readonly kind: "resource";
+    readonly audio?: undefined;
+    readonly video?: undefined;
 }
 export interface ImageMedia extends MediaBase {
     readonly kind: "image";
+    readonly audio?: undefined;
+    readonly video?: undefined;
 }
 export interface StandaloneAudioMedia extends MediaBase {
     readonly kind: "audio";
     readonly audio: AudioMedia;
+    readonly video?: undefined;
 }
 export interface HlsVideoMedia extends MediaBase {
     readonly kind: "video";
+    readonly audio?: undefined;
     readonly video: VideoMedia;
 }
 export type Media = ResourceMedia | ImageMedia | StandaloneAudioMedia | HlsVideoMedia;
@@ -215,6 +228,11 @@ export interface TaskResults {
     export: ExportResult;
     mp4_export: Mp4ExportResult;
 }
+/** Why a task failed or was cancelled. */
+export interface TaskFailure {
+    readonly code: string;
+    readonly message: string;
+}
 interface TaskBase {
     readonly id: string;
     readonly status: TaskStatus;
@@ -224,7 +242,7 @@ interface TaskBase {
     readonly attempt: number;
     readonly createdAt: Date;
     readonly updatedAt: Date;
-    readonly error: ProcessingWarning | null;
+    readonly error: TaskFailure | null;
 }
 export type Task<K extends TaskKind = TaskKind> = K extends TaskKind
     ? TaskBase & { readonly kind: K; readonly result: TaskResults[K] | null }
