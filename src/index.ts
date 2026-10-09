@@ -133,7 +133,17 @@ const json = async <T>(
         if (response.status !== expected) {
             throw await httpError(response);
         }
-        return decode(await response.json());
+        let data: unknown;
+        try {
+            data = await response.json();
+        } catch (error) {
+            // Only report invalid JSON as a protocol error; keep stream and timeout errors.
+            if (error instanceof SyntaxError) {
+                throw new DatalithProtocolError("Expected a JSON response", { cause: error });
+            }
+            throw error;
+        }
+        return decode(data);
     } finally {
         if (!response.bodyUsed) {
             await response.body?.cancel();
