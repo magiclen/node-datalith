@@ -43,7 +43,7 @@
         "test:integration": "npm run build && tsx --test tests/integration/service.integration.ts"
     },
     "dependencies": {
-        "fetch-helper-x": "^0.2.1"
+        "fetch-helper-x": "^0.3.0"
     },
     "devDependencies": {
         "@rslib/core": "^1.0.1",
