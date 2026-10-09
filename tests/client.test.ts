@@ -10,6 +10,7 @@ import { Datalith, DatalithError, TaskError, TaskWaitTimeoutError } from "../src
 import type { ExportResult } from "../src/index.ts";
 
 const ID = "ab975c7a-f924-4415-a312-772f4fc61b71";
+const SECOND_ID = "0e4f6a1d-8b2c-4d3e-9f5a-6b7c8d9e0f1a";
 const IMAGE_ID = "5a0c2e77-1f43-4c55-9a51-0d3f6c8e2b14";
 const VIDEO_ID = "c3d9b0f1-6a2e-4b7d-8e15-2f4a9c6d7e80";
 const created = "2026-10-08T00:00:00.000Z";
@@ -201,12 +202,14 @@ describe("Datalith client", () => {
                 send(response, 200, media);
             }
         } else if (path === "media") {
-            assert.equal(url.searchParams.get("per_page"), "10");
+            const page = Number(url.searchParams.get("page") ?? "1");
+            const perPage = Number(url.searchParams.get("per_page") ?? "50");
+            const items = [media, { ...media, id: SECOND_ID }];
             send(response, 200, {
-                items: [media],
-                page: 1,
-                per_page: 10,
-                total: "1",
+                items: items.slice((page - 1) * perPage, page * perPage),
+                page,
+                per_page: perPage,
+                total: String(items.length),
             });
         } else if (path === "exports") {
             send(
@@ -319,13 +322,21 @@ describe("Datalith client", () => {
         assert.equal(saved.expiresAt, null);
         assert.deepEqual(await datalith.getMedia(ID), saved);
         const page = await datalith.listMedia({ perPage: 10 });
-        assert.equal(page.total, 1);
+        assert.equal(page.total, 2);
         assert.equal(page.perPage, 10);
         assert.equal(page.items[0].id, ID);
         assert.equal(await datalith.deleteMedia(ID), true);
         assert.equal(await datalith.deleteMedia("missing"), false);
         assert.equal(await datalith.getMedia("missing"), null);
         assert.equal(await datalith.getTask("missing"), null);
+    });
+
+    it("iterates over every page of media", async () => {
+        const ids: string[] = [];
+        for await (const item of datalith.iterateMedia({ perPage: 1 })) {
+            ids.push(item.id);
+        }
+        assert.deepEqual(ids, [ID, SECOND_ID]);
     });
 
     it("names an upload after its source file", async () => {

@@ -101,6 +101,7 @@ export interface ListMediaOptions extends RequestOptions {
     page?: number;
     perPage?: number;
 }
+export type IterateMediaOptions = Omit<ListMediaOptions, "page">;
 export interface Mp4ExportOptions extends MutationOptions {
     session?: string;
 }
@@ -588,6 +589,30 @@ export class Datalith {
             200,
             decodePage,
         );
+    }
+    /**
+     * Reads every page of media; media added or deleted meanwhile can be missed.
+     *
+     * @yields Each available media once.
+     */
+    async *iterateMedia(options: IterateMediaOptions = {}): AsyncGenerator<Media> {
+        const seen = new Set<string>();
+        let page = 1;
+        while (true) {
+            // oxlint-disable-next-line eslint/no-await-in-loop -- Read one page at a time.
+            const result = await this.listMedia({ ...options, page });
+            for (const item of result.items) {
+                // New media move older media to later pages, so a page can repeat them.
+                if (!seen.has(item.id)) {
+                    seen.add(item.id);
+                    yield item;
+                }
+            }
+            if (result.items.length < result.perPage) {
+                return;
+            }
+            page++;
+        }
     }
     async deleteMedia(id: string, options: RequestOptions = {}): Promise<boolean> {
         const response = await this.#request(

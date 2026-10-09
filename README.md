@@ -60,7 +60,8 @@ They do not throw for HTTP errors, so check `response.ok` and use `DatalithError
 Read or cancel the body, including error responses.
 Use streaming for large files.
 
-Use `getMedia` and `listMedia` to read metadata, and `deleteMedia` to delete an item.
+Use `getMedia`, `listMedia`, and `iterateMedia` to read metadata, and `deleteMedia` to delete an item.
+`iterateMedia` reads every page and returns each item once; media added or deleted meanwhile can be missed.
 Missing items return null from `getMedia` and `getTask`, or false from `deleteMedia`.
 Data fields use camelCase and Date objects.
 Fields that the service leaves out get their default values, such as an empty `warnings` list.
