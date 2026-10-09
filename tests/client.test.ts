@@ -16,7 +16,7 @@ const created = "2026-10-08T00:00:00.000Z";
 const file = {
     id: ID,
     sha256: "a".repeat(64),
-    file_size: "9007199254740993",
+    file_size: "12",
     file_type: "text/plain",
     file_name: "測試.txt",
 };
@@ -198,7 +198,7 @@ describe("Datalith client", () => {
                 items: [media],
                 page: 1,
                 per_page: 10,
-                total: "9007199254740993",
+                total: "1",
             });
         } else if (path === "exports") {
             send(
@@ -306,12 +306,12 @@ describe("Datalith client", () => {
             enable_convert_to_image: true,
         });
         assert.deepEqual(progress, ["queued", "running", "succeeded"]);
-        assert.equal(saved.original?.fileSize, "9007199254740993");
+        assert.equal(saved.original?.fileSize, 12);
         assert.ok(saved.createdAt instanceof Date);
         assert.equal(saved.expiresAt, null);
         assert.deepEqual(await datalith.getMedia(ID), saved);
         const page = await datalith.listMedia({ perPage: 10 });
-        assert.equal(page.total, "9007199254740993");
+        assert.equal(page.total, 1);
         assert.equal(page.perPage, 10);
         assert.equal(page.items[0].id, ID);
         assert.equal(await datalith.deleteMedia(ID), true);
@@ -367,7 +367,7 @@ describe("Datalith client", () => {
 
     it("decodes archive and MP4 task results and playback sessions", async () => {
         const exported = await datalith.exportMedia([ID]);
-        assert.equal(exported.result?.artifact.fileSize, file.file_size);
+        assert.equal(exported.result?.artifact.fileSize, 12);
         const completed = await datalith.waitForTask(exported);
         const result: ExportResult = completed.result;
         assert.equal(result.mediaCount, 1);

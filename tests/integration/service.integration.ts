@@ -172,7 +172,7 @@ describe("Datalith service → SDK → application → nginx", () => {
             { pollInterval: 10 },
         );
         remember(saved.id, "document");
-        assert.equal(saved.original?.fileSize, "12");
+        assert.equal(saved.original?.fileSize, 12);
         assert.ok(saved.createdAt instanceof Date);
         assert.ok(
             (await datalith.listMedia({ perPage: 10 })).items.some((item) => item.id === saved.id),

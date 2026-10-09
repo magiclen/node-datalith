@@ -96,8 +96,8 @@ export type UploadSource =
 export interface MediaFile {
     readonly id: string;
     readonly sha256: string;
-    /** The size in bytes is a decimal string; use BigInt for large values. */
-    readonly fileSize: string;
+    /** The size in bytes. */
+    readonly fileSize: number;
     readonly fileType: string;
     readonly fileName: string;
 }
@@ -257,7 +257,7 @@ export interface Page<T> {
     readonly items: readonly T[];
     readonly page: number;
     readonly perPage: number;
-    readonly total: string;
+    readonly total: number;
 }
 export interface PlaybackSession {
     readonly token: string;
@@ -317,7 +317,8 @@ export interface Capabilities {
         readonly mp4Export: boolean;
     };
     readonly playbackSessions: { readonly seconds: number; readonly singleUseSemantics: string };
-    readonly maxFileSize: string;
+    /** The upload limit in bytes; a very large limit can be rounded. */
+    readonly maxFileSize: number;
     readonly taskRetentionSeconds: number;
     readonly taskNotifications: readonly string[];
     readonly cancellation: string;

@@ -77,6 +77,18 @@ const decimal = (value: unknown, path: string): string => {
     }
     return parsed;
 };
+// File sizes and counts are decimal strings in the API, but no real file or list is too large for a safe integer.
+const integer = (value: unknown, path: string): number => {
+    const parsed = Number(decimal(value, path));
+    if (!Number.isSafeInteger(parsed)) {
+        throw new DatalithProtocolError("Expected an integer up to Number.MAX_SAFE_INTEGER", {
+            path,
+        });
+    }
+    return parsed;
+};
+// A configured limit can be larger than Number.MAX_SAFE_INTEGER, so it may be rounded.
+const limit = (value: unknown, path: string): number => Number(decimal(value, path));
 const array =
     <T>(decode: Decoder<T>): Decoder<T[]> =>
     (value, path) => {
@@ -114,7 +126,7 @@ const file = (value: unknown, path: string): MediaFile => {
     return {
         id: field("id", text),
         sha256: field("sha256", text),
-        fileSize: field("file_size", decimal),
+        fileSize: field("file_size", integer),
         fileType: field("file_type", text),
         fileName: field("file_name", text),
     };
@@ -346,7 +358,7 @@ export const decodePage = (value: unknown, path = ""): Page<Media> => {
         items: field("items", array(decodeMedia)),
         page: field("page", number),
         perPage: field("per_page", number),
-        total: field("total", decimal),
+        total: field("total", integer),
     };
 };
 export const decodeSession = (value: unknown, path = ""): PlaybackSession => {
@@ -445,7 +457,7 @@ export const decodeCapabilities = (value: unknown, path = ""): Capabilities => {
         audio: field("audio", audioCapabilities),
         video: field("video", videoCapabilities),
         playbackSessions: field("playback_sessions", sessionCapabilities),
-        maxFileSize: field("max_file_size", decimal),
+        maxFileSize: field("max_file_size", limit),
         taskRetentionSeconds: field("task_retention_seconds", number),
         taskNotifications: field("task_notifications", array(text)),
         cancellation: field("cancellation", text),
