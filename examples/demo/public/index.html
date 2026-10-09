@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="referrer" content="no-referrer" />
+        <title>Datalith · File and media demo</title>
+        <link rel="stylesheet" href="/style.css" />
+        <script type="importmap">
+            { "imports": { "hls.js": "/vendor/hls.mjs" } }
+        </script>
+        <script type="module" src="/app.js"></script>
+    </head>
+    <body>
+        <div class="page">
+            <header class="header">
+                <a class="brand" href="/" aria-label="Datalith demo home">
+                    <span class="brand-mark" aria-hidden="true">D</span>
+                    <span>Datalith <span class="brand-note">Demo</span></span>
+                </a>
+                <div class="connection">
+                    <span id="connection" class="badge">Connecting</span>
+                    <button id="refresh" class="button subtle" type="button">Refresh</button>
+                </div>
+            </header>
+
+            <section class="intro" aria-labelledby="intro-title">
+                <p class="eyebrow">File storage · Image processing · Media playback</p>
+                <h1 id="intro-title">Upload a file. See what Datalith can do.</h1>
+                <p class="lead">
+                    Try a photo, song, or video. Datalith prepares it for the web. You can also save
+                    and download other files.
+                </p>
+                <ol class="steps">
+                    <li><span>1</span>Choose a file</li>
+                    <li><span>2</span>Wait for processing</li>
+                    <li><span>3</span>Preview and download</li>
+                </ol>
+            </section>
+
+            <p id="error" class="notice error" role="alert" hidden></p>
+
+            <main>
+                <div class="workspace">
+                    <section class="card upload-card" aria-labelledby="upload-title">
+                        <div class="section-heading">
+                            <h2 id="upload-title">Start with a file</h2>
+                            <p>Upload one file at a time, then view the result.</p>
+                        </div>
+                        <form id="upload-form">
+                            <label class="file-picker" for="file">
+                                <span class="file-symbol" aria-hidden="true">↑</span>
+                                <strong id="file-name">Click to choose a file</strong>
+                                <span id="file-info">Images, audio, video, or other files</span>
+                                <input id="file" class="visually-hidden" type="file" required />
+                            </label>
+                            <label class="field" for="mode">
+                                Upload mode
+                                <select id="mode">
+                                    <option value="auto">Detect and process</option>
+                                    <option value="resource">Keep original only</option>
+                                </select>
+                            </label>
+                            <p id="mode-note" class="hint">
+                                Datalith detects supported images, audio, and video and prepares
+                                versions for the web.
+                            </p>
+                            <label class="field" for="retention-mode">
+                                Storage
+                                <select id="retention-mode">
+                                    <option value="permanent">Keep forever</option>
+                                    <option value="temporary">Expire after</option>
+                                </select>
+                            </label>
+                            <label id="expiry-field" class="field" for="expiry-seconds" hidden>
+                                Expire after (seconds)
+                                <input
+                                    id="expiry-seconds"
+                                    type="number"
+                                    value="60"
+                                    min="1"
+                                    max="36000000"
+                                    step="1"
+                                    required
+                                    disabled
+                                />
+                                <span class="hint">Time starts when processing finishes.</span>
+                            </label>
+                            <label class="check" for="single-use">
+                                <input id="single-use" type="checkbox" />Single use
+                            </label>
+                            <p class="hint">
+                                Allow one download for files and images, or one playback session for
+                                audio and video. You can also set an expiry time.
+                            </p>
+                            <details id="processing-settings" class="settings">
+                                <summary>Media settings</summary>
+                                <fieldset id="media-settings">
+                                    <label class="check"
+                                        ><input id="keep-original" type="checkbox" checked />Keep
+                                        original</label
+                                    >
+                                    <label class="check"
+                                        ><input id="lossless" type="checkbox" />Keep lossless audio
+                                        (FLAC)</label
+                                    >
+                                    <p class="hint">
+                                        FLAC needs lossless source audio. AAC is also kept for
+                                        playback.
+                                    </p>
+                                    <fieldset id="image-settings">
+                                        <legend>Image outputs</legend>
+                                        <p class="hint">
+                                            Each output has its own name, size, crop and scales. All
+                                            outputs have the same role.
+                                        </p>
+                                        <div id="image-outputs"></div>
+                                        <button
+                                            id="add-image-output"
+                                            class="button secondary"
+                                            type="button"
+                                        >
+                                            Add image output
+                                        </button>
+                                        <p id="image-limit" class="hint"></p>
+                                        <p class="hint">
+                                            Crops use the center. 2x doubles the 1x size. Small
+                                            originals may not produce every scale. Remove all rows
+                                            to keep images as files.
+                                        </p>
+                                    </fieldset>
+                                    <fieldset id="video-settings">
+                                        <legend>Video outputs</legend>
+                                        <div id="video-outputs"></div>
+                                        <button
+                                            id="add-video-output"
+                                            class="button secondary"
+                                            type="button"
+                                        >
+                                            Add video output
+                                        </button>
+                                        <p class="hint">
+                                            Each row is a resolution and FPS pair. The size tier is
+                                            the shorter side. The source may limit size and frame
+                                            rate. Remove all rows to keep videos as files.
+                                        </p>
+                                    </fieldset>
+                                    <button
+                                        id="reset-settings"
+                                        class="button secondary"
+                                        type="button"
+                                    >
+                                        Reset settings
+                                    </button>
+                                </fieldset>
+                            </details>
+                            <button id="upload" class="button primary full" type="submit" disabled>
+                                Upload and process
+                            </button>
+                        </form>
+                        <div id="task" class="task" role="status" aria-live="polite" hidden>
+                            <strong id="task-status"></strong>
+                            <p id="task-message"></p>
+                            <progress
+                                id="task-progress"
+                                max="1"
+                                aria-label="Current stage progress"
+                            ></progress>
+                            <button id="resume" class="button secondary" type="button" hidden>
+                                Check status again
+                            </button>
+                        </div>
+                        <div class="service-info">
+                            <p class="small-label">Service supports</p>
+                            <div id="capabilities" class="capabilities">
+                                <span class="hint">Loading…</span>
+                            </div>
+                            <p id="limit" class="hint"></p>
+                        </div>
+                    </section>
+
+                    <section class="card library-card" aria-labelledby="library-title">
+                        <div class="section-heading library-heading">
+                            <div>
+                                <h2 id="library-title">Saved files</h2>
+                                <p>Choose a file to see its preview and processed versions.</p>
+                            </div>
+                            <span id="total" class="count">—</span>
+                        </div>
+                        <div class="table-scroll">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>File name</th>
+                                        <th>Type</th>
+                                        <th>Original size</th>
+                                        <th>Created</th>
+                                        <th>Storage</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="media-list"></tbody>
+                            </table>
+                            <p id="empty" class="empty">Loading files…</p>
+                        </div>
+                        <div class="pagination">
+                            <p id="page-info" class="hint"></p>
+                            <div>
+                                <button id="previous" class="button subtle" type="button" disabled>
+                                    Previous
+                                </button>
+                                <button id="next" class="button subtle" type="button" disabled>
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                        <div id="active-sessions" class="active-sessions" hidden></div>
+                    </section>
+                </div>
+
+                <section
+                    id="details"
+                    class="card details-card"
+                    aria-labelledby="detail-title"
+                    hidden
+                >
+                    <div class="detail-heading">
+                        <div>
+                            <p id="detail-kind" class="eyebrow"></p>
+                            <h2 id="detail-title"></h2>
+                            <p id="detail-info" class="hint"></p>
+                            <p id="detail-expiry" class="hint"></p>
+                        </div>
+                        <div class="actions">
+                            <a id="download-original" class="button secondary">Download original</a>
+                            <button id="delete" class="button danger" type="button">
+                                Delete file
+                            </button>
+                        </div>
+                    </div>
+                    <p id="detail-note" class="notice" hidden></p>
+                    <div id="preview"></div>
+                </section>
+            </main>
+
+            <footer>
+                <p>
+                    Available files come from your Datalith service. Claimed single-use files leave
+                    the list.
+                </p>
+                <p>
+                    Use the storage and media settings to try expiry, single use, image crops,
+                    output scales, and audio/video options.
+                </p>
+            </footer>
+        </div>
+    </body>
+</html>

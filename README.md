@@ -257,6 +257,13 @@ It starts when `waitForTask` begins; in `uploadAndWait`, this is after the uploa
 `DatalithProtocolError` means the service data does not match the API; its `path` shows where, such as `items[0].file_name`.
 The package also exports `TimeoutError`, `isTimeoutError`, and `isAbortError`.
 
+## Browser demo
+
+Run `npm run demo` in this repository to try file uploads, image outputs, and audio/video playback through the library.
+You can set an expiry time, change image sizes, crops and scales, and choose audio/video options.
+The demo uses `http://127.0.0.1:1111` as its Datalith service and opens at `http://127.0.0.1:1112`.
+See the [demo guide](examples/demo/README.md) for settings and steps to try.
+
 ## Development
 
 ```sh

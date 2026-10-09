@@ -30,6 +30,7 @@
         "clean": "rimraf lib",
         "build": "npm run clean && rslib build",
         "build:watch": "rslib build --watch",
+        "demo": "npm run build && tsx examples/demo/server.ts",
         "lint": "oxlint",
         "lint:fix": "oxlint --fix",
         "format": "oxfmt",
@@ -48,6 +49,7 @@
     "devDependencies": {
         "@rslib/core": "^1.0.1",
         "@types/node": "^26.6.4",
+        "hls.js": "1.7.3",
         "knip": "^6.40.0",
         "oxfmt": "^0.72.0",
         "oxlint": "^1.87.0",
@@ -61,6 +63,7 @@
     },
     "knip": {
         "entry": [
+            "examples/demo/public/app.js",
             "tests/**/*.test.ts",
             "tests/integration/*.integration.ts"
         ]

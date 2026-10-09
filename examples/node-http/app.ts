@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import type { IncomingMessage, Server, ServerResponse } from "node:http";
+import type { IncomingMessage, RequestListener, Server, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { ReadableStream as NodeReadableStream } from "node:stream/web";
@@ -82,8 +82,9 @@ const streamResponse = async (
 };
 
 /** Creates example app routes that call the SDK after access checks. */
-export const createConsumerServer = (options: ConsumerOptions): Server =>
-    createServer((request, response) => {
+export const createConsumerHandler =
+    (options: ConsumerOptions): RequestListener =>
+    (request, response) => {
         const controller = new AbortController();
         let slug = "";
         let upstream: Response | undefined;
@@ -198,4 +199,7 @@ export const createConsumerServer = (options: ConsumerOptions): Server =>
                     void upstream.body.cancel().catch(() => {});
                 }
             });
-    });
+    };
+
+export const createConsumerServer = (options: ConsumerOptions): Server =>
+    createServer(createConsumerHandler(options));
