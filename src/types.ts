@@ -1,6 +1,7 @@
 export type MediaKind = "resource" | "image" | "audio" | "video";
 export type ProcessingMode = "transcode" | "trust";
-export type ProcessingMethod = "unknown" | "copied" | "remuxed" | "transcoded";
+/** How an output was made; newer services can send other values. */
+export type ProcessingMethod = "unknown" | "copied" | "remuxed" | "transcoded" | (string & {});
 export type ImageFormat = "webp" | "png" | "jpeg" | "gif";
 export type VideoResolution =
     | 144
@@ -91,6 +92,7 @@ export type UploadSource =
     | ReadableStream<Uint8Array>
     | AsyncIterable<Uint8Array>;
 
+// Output types also accept values that this package does not know yet, such as a newer image format.
 export interface MediaFile {
     readonly id: string;
     readonly sha256: string;
@@ -112,7 +114,7 @@ export interface ImageVariant {
     readonly processingMethod: ProcessingMethod;
     readonly name: string;
     readonly multiplier: number;
-    readonly format: ImageFormat;
+    readonly format: ImageFormat | (string & {});
     readonly width: number;
     readonly height: number;
     readonly animated: boolean;
@@ -126,7 +128,7 @@ export interface Rational {
 }
 export interface AudioVariant {
     readonly id: string;
-    readonly codec: "aac" | "flac";
+    readonly codec: "aac" | "flac" | (string & {});
     readonly bitrate: number;
     readonly sampleRate: number;
     readonly channels: number;
@@ -141,10 +143,10 @@ export interface AudioMedia {
 }
 export interface VideoVariant {
     readonly id: string;
-    readonly resolution: VideoResolution;
+    readonly resolution: VideoResolution | (number & {});
     readonly width: number;
     readonly height: number;
-    readonly fps: VideoFrameRate;
+    readonly fps: VideoFrameRate | (number & {});
     readonly frameRate: Rational;
     readonly leadingHoldSeconds: number;
     readonly codec: string;
@@ -213,7 +215,7 @@ export interface ExportResult {
 export interface Mp4ExportResult {
     readonly mediaId: string;
     readonly variant: string;
-    readonly audio: "aac_low" | "aac_high" | "flac" | null;
+    readonly audio: "aac_low" | "aac_high" | "flac" | (string & {}) | null;
     readonly artifact: MediaFile;
     readonly artifactPath: string;
     readonly expiresAt: Date;
@@ -269,7 +271,7 @@ export interface Capabilities {
     readonly image: {
         readonly engine: string;
         readonly animatedInputs: readonly string[];
-        readonly outputs: readonly ImageFormat[];
+        readonly outputs: readonly (ImageFormat | (string & {}))[];
         readonly apngRequiresFfmpeg: boolean;
         readonly apngTimingPrecisionMs: number;
         readonly limits: {
@@ -279,7 +281,7 @@ export interface Capabilities {
             readonly maxVariants: number;
             readonly maxMultiplier: number;
         };
-        readonly processingModes: readonly ProcessingMode[];
+        readonly processingModes: readonly (ProcessingMode | (string & {}))[];
         readonly saveOriginalDefault: boolean;
     };
     readonly av: {
@@ -297,7 +299,7 @@ export interface Capabilities {
         readonly aacBitrates: readonly number[];
         readonly mp3Fallback: boolean;
         readonly saveOriginalDefault: boolean;
-        readonly processingModes: readonly ProcessingMode[];
+        readonly processingModes: readonly (ProcessingMode | (string & {}))[];
         readonly selectedAudioStreams: number;
     };
     readonly video: {
@@ -306,12 +308,12 @@ export interface Capabilities {
         readonly pixelFormat: string;
         readonly delivery: string;
         readonly requiresVariants: boolean;
-        readonly resolutionTiers: readonly VideoResolution[];
-        readonly frameRateTiers: readonly VideoFrameRate[];
+        readonly resolutionTiers: readonly (VideoResolution | (number & {}))[];
+        readonly frameRateTiers: readonly (VideoFrameRate | (number & {}))[];
         readonly bitrate: number;
         readonly bitrateUnit: string;
         readonly saveOriginalDefault: boolean;
-        readonly processingModes: readonly ProcessingMode[];
+        readonly processingModes: readonly (ProcessingMode | (string & {}))[];
         readonly mp4Export: boolean;
     };
     readonly playbackSessions: { readonly seconds: number; readonly singleUseSemantics: string };

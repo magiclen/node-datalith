@@ -59,6 +59,7 @@ Use `getMedia` and `listMedia` to read metadata, and `deleteMedia` to delete an 
 Missing items return null from `getMedia` and `getTask`, or false from `deleteMedia`.
 Data fields use camelCase and Date objects.
 Fields that the service leaves out get their default values, such as an empty `warnings` list.
+New values that this package does not know yet, such as a newer image format, are kept as they are.
 File sizes and list totals stay decimal strings; use BigInt for large values.
 
 ## Tasks

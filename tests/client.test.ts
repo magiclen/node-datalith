@@ -56,6 +56,18 @@ const imageMedia = {
                 multipliers: [1],
             },
         },
+        // A newer service can send an output format that this package does not know yet.
+        {
+            name: "small",
+            multiplier: 1,
+            format: "avif",
+            width: 128,
+            height: 96,
+            animated: false,
+            file,
+            content_path: "media/" + IMAGE_ID + "/content?variant=small&multiplier=1&format=avif",
+            recipe: null,
+        },
     ],
 };
 // The service leaves out `leading_hold_seconds` when it is zero.
@@ -313,6 +325,7 @@ describe("Datalith client", () => {
         assert.ok(image?.kind === "image");
         assert.deepEqual(image.warnings, []);
         assert.equal(image.variants[0].processingMethod, "unknown");
+        assert.equal(image.variants[1].format, "avif");
         assert.deepEqual(image.variants[0].recipe, {
             name: "small",
             maxWidth: 128,

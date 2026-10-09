@@ -5,7 +5,6 @@ import type {
     Capabilities,
     CropRatio,
     ExportResult,
-    ImageFormat,
     ImageRecipe,
     ImageVariant,
     ImportResult,
@@ -15,16 +14,12 @@ import type {
     Mp4ExportResult,
     Page,
     PlaybackSession,
-    ProcessingMethod,
-    ProcessingMode,
     ProcessingWarning,
     Rational,
     Task,
     TaskFailure,
     TaskStatus,
-    VideoFrameRate,
     VideoMedia,
-    VideoResolution,
     VideoVariant,
 } from "./types.ts";
 
@@ -109,13 +104,6 @@ const oneOf =
         }
         throw new DatalithProtocolError("Unknown value " + describe(value), { path });
     };
-const method = oneOf<ProcessingMethod>(["unknown", "copied", "remuxed", "transcoded"]);
-const mode = oneOf<ProcessingMode>(["transcode", "trust"]);
-const format = oneOf<ImageFormat>(["webp", "png", "jpeg", "gif"]);
-const resolution = oneOf<VideoResolution>([
-    144, 240, 360, 432, 480, 540, 576, 720, 900, 1080, 1440, 2160,
-]);
-const fps = oneOf<VideoFrameRate>([10, 12, 15, 20, 24, 25, 30, 48, 50, 60]);
 
 const rational = (value: unknown, path: string): Rational => {
     const field = fields(value, path);
@@ -148,10 +136,10 @@ const recipe = (value: unknown, path: string): ImageRecipe => {
 const imageVariant = (value: unknown, path: string): ImageVariant => {
     const field = fields(value, path);
     return {
-        processingMethod: field("processing_method", optional(method, "unknown")),
+        processingMethod: field("processing_method", optional(text, "unknown")),
         name: field("name", text),
         multiplier: field("multiplier", number),
-        format: field("format", format),
+        format: field("format", text),
         width: field("width", number),
         height: field("height", number),
         animated: field("animated", boolean),
@@ -164,12 +152,12 @@ const audioVariant = (value: unknown, path: string): AudioVariant => {
     const field = fields(value, path);
     return {
         id: field("id", text),
-        codec: field("codec", oneOf(["aac", "flac"])),
+        codec: field("codec", text),
         bitrate: field("bitrate", number),
         sampleRate: field("sample_rate", number),
         channels: field("channels", number),
         bitsPerSample: field("bits_per_sample", nullable(number)),
-        processingMethod: field("processing_method", method),
+        processingMethod: field("processing_method", text),
         file: field("file", nullable(file)),
         contentPath: field("content_path", text),
     };
@@ -185,14 +173,14 @@ const videoVariant = (value: unknown, path: string): VideoVariant => {
     const field = fields(value, path);
     return {
         id: field("id", text),
-        resolution: field("resolution", resolution),
+        resolution: field("resolution", number),
         width: field("width", number),
         height: field("height", number),
-        fps: field("fps", fps),
+        fps: field("fps", number),
         frameRate: field("frame_rate", rational),
         leadingHoldSeconds: field("leading_hold_seconds", optional(number, 0)),
         codec: field("codec", text),
-        processingMethod: field("processing_method", method),
+        processingMethod: field("processing_method", text),
         playlistPath: field("playlist_path", text),
         audio: field("audio", array(text)),
     };
@@ -290,7 +278,7 @@ const mp4 = (value: unknown, path: string): Mp4ExportResult => {
     return {
         mediaId: field("media_id", text),
         variant: field("variant", text),
-        audio: field("audio", nullable(oneOf(["aac_low", "aac_high", "flac"]))),
+        audio: field("audio", nullable(text)),
         artifact: field("artifact", file),
         artifactPath: field("artifact_path", text),
         expiresAt: field("expires_at", date),
@@ -390,11 +378,11 @@ const imageCapabilities = (value: unknown, path: string): Capabilities["image"] 
     return {
         engine: field("engine", text),
         animatedInputs: field("animated_inputs", array(text)),
-        outputs: field("outputs", array(format)),
+        outputs: field("outputs", array(text)),
         apngRequiresFfmpeg: field("apng_requires_ffmpeg", boolean),
         apngTimingPrecisionMs: field("apng_timing_precision_ms", number),
         limits: field("limits", imageLimits),
-        processingModes: field("processing_modes", array(mode)),
+        processingModes: field("processing_modes", array(text)),
         saveOriginalDefault: field("save_original_default", boolean),
     };
 };
@@ -418,7 +406,7 @@ const audioCapabilities = (value: unknown, path: string): Capabilities["audio"] 
         aacBitrates: field("aac_bitrates", array(number)),
         mp3Fallback: field("mp3_fallback", boolean),
         saveOriginalDefault: field("save_original_default", boolean),
-        processingModes: field("processing_modes", array(mode)),
+        processingModes: field("processing_modes", array(text)),
         selectedAudioStreams: field("selected_audio_streams", number),
     };
 };
@@ -430,12 +418,12 @@ const videoCapabilities = (value: unknown, path: string): Capabilities["video"] 
         pixelFormat: field("pixel_format", text),
         delivery: field("delivery", text),
         requiresVariants: field("requires_variants", boolean),
-        resolutionTiers: field("resolution_tiers", array(resolution)),
-        frameRateTiers: field("frame_rate_tiers", array(fps)),
+        resolutionTiers: field("resolution_tiers", array(number)),
+        frameRateTiers: field("frame_rate_tiers", array(number)),
         bitrate: field("bitrate", number),
         bitrateUnit: field("bitrate_unit", text),
         saveOriginalDefault: field("save_original_default", boolean),
-        processingModes: field("processing_modes", array(mode)),
+        processingModes: field("processing_modes", array(text)),
         mp4Export: field("mp4_export", boolean),
     };
 };
