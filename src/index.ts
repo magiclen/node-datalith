@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 
-import { timeoutFetch } from "fetch-helper-x";
+import { isTimeoutError, timeoutFetch } from "fetch-helper-x";
 import type { TimeoutRequestInit } from "fetch-helper-x";
 
 import {
@@ -37,6 +37,7 @@ const DAY = 86_400_000;
 const SHORT_TIMEOUT = 30_000;
 // The longest delay that `setTimeout` accepts; a longer one becomes 1 ms.
 const MAX_DELAY = 2_147_483_647;
+const MAX_RETRY_DELAY = 30_000;
 
 export interface RequestOptions {
     headers?: HeadersInit;
@@ -96,6 +97,12 @@ export interface WaitOptions extends RequestOptions {
     pollInterval?: number;
     /** The local wait limit in milliseconds; null removes the limit. */
     waitTimeout?: number | null;
+    /**
+     * How many polls in a row can fail with a temporary error, such as while the service restarts,
+     * 10 by default.
+     */
+    maxPollRetries?: number;
+    /** The first call gets the task that the wait starts with, so you can keep its ID. */
     onProgress?: (task: Task) => void;
 }
 type Query = Record<string, string | number | boolean | null | undefined>;
@@ -120,6 +127,11 @@ const expectKind = <K extends TaskKind>(task: Task, kinds: readonly K[]): Task<K
 };
 const isSuccessful = (task: Task): task is SuccessfulTask =>
     task.status === "succeeded" && task.result !== null;
+// Network failures, timeouts, and server errors can be temporary, such as while the service restarts.
+const isTemporary = (error: unknown): boolean =>
+    (error instanceof TypeError && error.cause !== undefined) ||
+    isTimeoutError(error) ||
+    (error instanceof DatalithError && error.status >= 500);
 // `undefined` means that a timeout is not set, while `null` removes the limit.
 const firstTimeout = (...timeouts: (number | null | undefined)[]): number | null | undefined =>
     timeouts.find((timeout) => timeout !== undefined);
@@ -341,6 +353,7 @@ export class Datalith {
         const id = typeof input === "string" ? input : input.id;
         const interval = options.pollInterval ?? 1000;
         const timeout = options.waitTimeout === undefined ? DAY : options.waitTimeout;
+        const retries = options.maxPollRetries ?? 10;
         if (!Number.isFinite(interval) || interval <= 0 || interval > MAX_DELAY) {
             throw new RangeError("pollInterval must be greater than 0 and at most 2147483647.");
         }
@@ -350,6 +363,11 @@ export class Datalith {
         ) {
             throw new RangeError("Invalid waitTimeout.");
         }
+        if (!Number.isInteger(retries) || retries < 0) {
+            throw new RangeError("maxPollRetries must be a non-negative integer.");
+        }
+        // Check the ID before polling, because a poll would retry a TypeError like a network failure.
+        segment(id);
         const controller = new AbortController();
         const timer =
             timeout === null
@@ -364,10 +382,7 @@ export class Datalith {
             while (true) {
                 signal.throwIfAborted();
                 // oxlint-disable-next-line eslint/no-await-in-loop -- Wait for each poll request to finish.
-                task ??= await this.getTask(id, { ...options, signal });
-                if (task === null) {
-                    throw new DatalithError(404, "not_found", "Task " + id + " was not found.");
-                }
+                task ??= await this.#pollTask(id, { ...options, signal }, interval, retries);
                 options.onProgress?.(task);
                 signal.throwIfAborted();
                 if (isSuccessful(task)) {
@@ -387,6 +402,37 @@ export class Datalith {
             throw error;
         } finally {
             clearTimeout(timer);
+        }
+    }
+
+    // Read the task, and retry temporary failures with a delay that doubles each time.
+    async #pollTask(
+        id: string,
+        options: RequestOptions & { signal: AbortSignal },
+        interval: number,
+        retries: number,
+    ): Promise<Task> {
+        let failures = 0;
+        while (true) {
+            let task: Task | null;
+            try {
+                // oxlint-disable-next-line eslint/no-await-in-loop -- Retry one poll at a time.
+                task = await this.getTask(id, options);
+            } catch (error) {
+                if (failures >= retries || options.signal.aborted || !isTemporary(error)) {
+                    throw error;
+                }
+                // oxlint-disable-next-line eslint/no-await-in-loop -- Wait before the next try.
+                await delay(Math.min(interval * 2 ** failures, MAX_RETRY_DELAY), undefined, {
+                    signal: options.signal,
+                });
+                failures++;
+                continue;
+            }
+            if (task === null) {
+                throw new DatalithError(404, "not_found", "Task " + id + " was not found.");
+            }
+            return task;
         }
     }
 

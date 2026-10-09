@@ -83,10 +83,11 @@ console.log(completed.result);
 `waitForTask` accepts a Task or task ID and returns the successful Task.
 `uploadAndWait` returns the completed Media.
 A failed or cancelled task throws `TaskError`, which holds the Task.
+Polling keeps going through temporary failures, such as a service restart, up to `maxPollRetries` failures in a row (10 by default).
 
 Use `cancelTask` to cancel remote work and `retryTask` to retry a failed or cancelled task.
 An AbortSignal or `waitTimeout` only stops local waiting.
-Keep the task ID if you want to check it later.
+Keep the task ID if you want to check it later; the first `onProgress` call gets the task, even from `uploadAndWait`.
 
 Use the same `idempotencyKey` when sending the same operation again, and a new key for each new operation.
 The SDK does not replay upload streams.

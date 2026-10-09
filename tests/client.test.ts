@@ -135,6 +135,7 @@ describe("Datalith client", () => {
     let baseUrl: URL;
     let polls = 0;
     let state = "succeeded";
+    let failingPolls = 0;
     let uploadedOptions: unknown;
     let uploadedFile = "";
     let lastHeaders: IncomingMessage["headers"];
@@ -167,6 +168,9 @@ describe("Datalith client", () => {
             uploadedFile = content[1];
             polls = 0;
             send(response, 202, task());
+        } else if (path === "tasks/" + ID && failingPolls > 0) {
+            failingPolls--;
+            send(response, 503, { error: { code: "http_error", message: "Service Unavailable" } });
         } else if (path === "tasks/" + ID) {
             polls++;
             send(
@@ -409,6 +413,15 @@ describe("Datalith client", () => {
             (error: unknown) => error === reason,
         );
         state = "succeeded";
+    });
+
+    it("keeps waiting through temporary poll failures", async () => {
+        state = "succeeded";
+        polls = 1;
+        failingPolls = 2;
+        const completed = await datalith.waitForTask(ID, { pollInterval: 1 });
+        assert.equal(completed.status, "succeeded");
+        assert.equal(failingPolls, 0);
     });
 
     it("keeps service error codes and request metadata", async () => {
