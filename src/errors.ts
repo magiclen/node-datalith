@@ -12,6 +12,40 @@ export class DatalithError extends Error {
         super(message);
         this.name = "DatalithError";
     }
+
+    /**
+     * Reads the error from a response that is not ok, such as a download response.
+     *
+     * It reads the response body, so do not read the body before.
+     */
+    static async fromResponse(response: Response): Promise<DatalithError> {
+        let data: unknown;
+        try {
+            data = await response.json();
+        } catch (error) {
+            // Only ignore invalid JSON; keep stream and timeout errors.
+            if (!(error instanceof SyntaxError)) {
+                throw error;
+            }
+        }
+        const body: object = typeof data === "object" && data !== null ? data : {};
+        const detail: object =
+            "error" in body && typeof body.error === "object" && body.error !== null
+                ? body.error
+                : {};
+        return new DatalithError(
+            response.status,
+            "code" in detail && typeof detail.code === "string" ? detail.code : "http_error",
+            "message" in detail && typeof detail.message === "string"
+                ? detail.message
+                : "Datalith returned HTTP " + response.status + ".",
+            response.headers.get("x-request-id") ??
+                ("request_id" in body && typeof body.request_id === "string"
+                    ? body.request_id
+                    : null),
+            response.headers.get("retry-after"),
+        );
+    }
 }
 
 /** Options for `DatalithProtocolError`. */

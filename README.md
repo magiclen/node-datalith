@@ -16,7 +16,7 @@ npm install node-datalith
 ```typescript
 import { createReadStream } from "node:fs";
 
-import { Datalith } from "node-datalith";
+import { Datalith, DatalithError } from "node-datalith";
 
 const API_PREFIX = "http://127.0.0.1:1111";
 const FILE_PATH = "tests/data/image.png";
@@ -27,6 +27,9 @@ const resource = await datalith.uploadAndWait(createReadStream(FILE_PATH), {
     fileName: "image.png",
 });
 const response = await datalith.getContent(resource.id);
+if (!response.ok) {
+    throw await DatalithError.fromResponse(response);
+}
 const data = await response.arrayBuffer();
 
 const image = await datalith.uploadAndWait(createReadStream(FILE_PATH), {
@@ -52,6 +55,7 @@ Stream chunks must be binary data.
 You do not need to know the file size before uploading.
 
 Download methods return a Fetch Response with its status, headers, and body stream.
+They do not throw for HTTP errors, so check `response.ok` and use `DatalithError.fromResponse(response)` to read an error.
 Read or cancel the body, including error responses.
 Use streaming for large files.
 
@@ -186,6 +190,9 @@ import { writeFile } from "node:fs/promises";
 
 const backup = await datalith.waitForTask(await datalith.exportMedia([resource.id]));
 const archive = await datalith.getArtifact(backup.id);
+if (!archive.ok) {
+    throw await DatalithError.fromResponse(archive);
+}
 await writeFile("./backup.tar", new Uint8Array(await archive.arrayBuffer()));
 
 const imported = await datalith.waitForTask(
@@ -197,6 +204,9 @@ if (video.kind === "video") {
     const task = await datalith.exportMp4(video.id, video.video.variants[0].id);
     const completed = await datalith.waitForTask(task);
     const response = await datalith.getArtifact(completed.id);
+    if (!response.ok) {
+        throw await DatalithError.fromResponse(response);
+    }
     await writeFile("./video.mp4", new Uint8Array(await response.arrayBuffer()));
 }
 ```

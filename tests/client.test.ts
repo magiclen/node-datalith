@@ -353,6 +353,9 @@ describe("Datalith client", () => {
         const cached = await datalith.getContent(ID, { download: true, ifNoneMatch: '"etag"' });
         assert.equal(cached.status, 304);
         assert.equal(cached.body, null);
+        const missing = await datalith.getContent("missing");
+        assert.equal(missing.status, 404);
+        assert.equal((await DatalithError.fromResponse(missing)).code, "not_found");
         const head = await datalith.getContent(ID, { method: "HEAD", download: true });
         assert.equal(head.body, null);
         assert.equal(head.headers.get("content-length"), "4");

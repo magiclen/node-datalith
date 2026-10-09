@@ -28,7 +28,7 @@ type Decoder<T> = (value: unknown, path: string) => T;
 /** Decodes one field of a JSON object. */
 type Field = <T>(key: string, decode: Decoder<T>) => T;
 
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
+const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value);
 const isArray = (value: unknown): value is unknown[] => Array.isArray(value);
 const child = (path: string, key: string): string => (path === "" ? key : path + "." + key);

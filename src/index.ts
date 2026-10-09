@@ -10,7 +10,6 @@ import {
     decodeSession,
     decodeTask,
     encodeOptions,
-    isRecord,
 } from "./codec.ts";
 import { DatalithError, DatalithProtocolError, TaskError, TaskWaitTimeoutError } from "./errors.ts";
 import { multipart } from "./multipart.ts";
@@ -88,8 +87,6 @@ const segment = (value: string): string => {
     }
     return encodeURIComponent(value);
 };
-const asRecord = (value: unknown): Record<string, unknown> | undefined =>
-    isRecord(value) ? value : undefined;
 
 const hasKind = <K extends TaskKind>(task: Task, kinds: readonly K[]): task is Task<K> =>
     kinds.some((kind) => task.kind === kind);
@@ -104,28 +101,6 @@ const expectKind = <K extends TaskKind>(task: Task, kinds: readonly K[]): Task<K
 const isSuccessful = (task: Task): task is SuccessfulTask =>
     task.status === "succeeded" && task.result !== null;
 
-const httpError = async (response: Response): Promise<DatalithError> => {
-    let data: Record<string, unknown> | undefined;
-    try {
-        data = asRecord(await response.json());
-    } catch (error) {
-        // Only ignore invalid JSON; keep stream and timeout errors.
-        if (!(error instanceof SyntaxError)) {
-            throw error;
-        }
-    }
-    const error = asRecord(data?.["error"]);
-    return new DatalithError(
-        response.status,
-        typeof error?.["code"] === "string" ? error["code"] : "http_error",
-        typeof error?.["message"] === "string"
-            ? error["message"]
-            : "Datalith returned HTTP " + response.status + ".",
-        response.headers.get("x-request-id") ??
-            (typeof data?.["request_id"] === "string" ? data["request_id"] : null),
-        response.headers.get("retry-after"),
-    );
-};
 const json = async <T>(
     response: Response,
     expected: number,
@@ -133,7 +108,7 @@ const json = async <T>(
 ): Promise<T> => {
     try {
         if (response.status !== expected) {
-            throw await httpError(response);
+            throw await DatalithError.fromResponse(response);
         }
         let data: unknown;
         try {
@@ -444,7 +419,7 @@ export class Datalith {
             if (response.status === 404) {
                 return false;
             }
-            throw await httpError(response);
+            throw await DatalithError.fromResponse(response);
         } finally {
             if (!response.bodyUsed) {
                 await response.body?.cancel();
