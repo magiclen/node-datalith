@@ -47,6 +47,7 @@ export interface AudioOptions {
     audioStream?: number | null;
 }
 export interface VideoVariantSpec {
+    /** The tier of the shorter canvas side, such as 1080 for 1920x1080 or 1080x1920. */
     resolution: VideoResolution;
     fps: VideoFrameRate;
 }

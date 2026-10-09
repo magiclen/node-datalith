@@ -115,6 +115,7 @@ const video = await datalith.uploadAndWait(createReadStream("./video.mp4"), {
 ```
 
 Video needs a list of sizes and frame rates.
+A size tier is the shorter side of the canvas, so 1080 means 1920x1080, or 1080x1920 for portrait video.
 The service may adjust or combine variants to fit the source, so use the returned variant IDs.
 
 Resource uploads can use `enableConvertToImage`, `enableConvertToAudio`, and `enableConvertToVideo` for automatic processing.
