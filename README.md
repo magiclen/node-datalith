@@ -220,7 +220,10 @@ For single-use MP4, pass the same session token when submitting, cancelling, ret
 ## Options and errors
 
 Set default headers and timeouts in the client constructor, or override them for each request.
-Control requests default to 30 seconds, streaming requests to 24 hours, and stream idle time to 30 seconds.
+In the constructor, `requestTimeout` limits control requests, such as reading metadata or polling a task, and defaults to 30 seconds.
+`transferTimeout` limits uploads, imports, and downloads, and defaults to 24 hours.
+`idleTimeout` limits the time without progress while sending or receiving, and defaults to 30 seconds.
+For one request, `requestTimeout` and `idleTimeout` override these defaults.
 Use null to turn off a timeout.
 `waitTimeout` limits task waiting separately from the HTTP request timeout.
 

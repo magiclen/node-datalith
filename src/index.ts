@@ -39,10 +39,27 @@ const SHORT_TIMEOUT = 30_000;
 export interface RequestOptions {
     headers?: HeadersInit;
     signal?: AbortSignal;
+    /** The limit in milliseconds for the whole request; null removes the limit. */
     requestTimeout?: number | null;
+    /**
+     * The longest time in milliseconds without progress while sending or receiving; null removes
+     * the limit.
+     */
     idleTimeout?: number | null;
 }
-export type DatalithOptions = Omit<RequestOptions, "signal">;
+/** Default headers and timeouts for the requests of a client. */
+export interface DatalithOptions {
+    headers?: HeadersInit;
+    /**
+     * The limit in milliseconds for control requests, such as reading metadata, 30 seconds by
+     * default.
+     */
+    requestTimeout?: number | null;
+    /** The limit in milliseconds for uploads, imports, and downloads, 24 hours by default. */
+    transferTimeout?: number | null;
+    /** The longest time in milliseconds without progress, 30 seconds by default. */
+    idleTimeout?: number | null;
+}
 export interface MutationOptions extends RequestOptions {
     idempotencyKey?: string;
 }
@@ -80,6 +97,7 @@ export interface WaitOptions extends RequestOptions {
     onProgress?: (task: Task) => void;
 }
 type Query = Record<string, string | number | boolean | null | undefined>;
+type RequestKind = "control" | "download" | "upload";
 
 const segment = (value: string): string => {
     if (value.length === 0 || value === "." || value === ".." || /[/\\]/u.test(value)) {
@@ -100,6 +118,9 @@ const expectKind = <K extends TaskKind>(task: Task, kinds: readonly K[]): Task<K
 };
 const isSuccessful = (task: Task): task is SuccessfulTask =>
     task.status === "succeeded" && task.result !== null;
+// `undefined` means that a timeout is not set, while `null` removes the limit.
+const firstTimeout = (...timeouts: (number | null | undefined)[]): number | null | undefined =>
+    timeouts.find((timeout) => timeout !== undefined);
 
 const json = async <T>(
     response: Response,
@@ -160,9 +181,10 @@ export class Datalith {
         url: URL,
         init: TimeoutRequestInit,
         options: RequestOptions = {},
-        streaming = false,
+        kind: RequestKind = "control",
     ): Promise<Response> {
-        const headers = new Headers(this.#defaults.headers);
+        const defaults = this.#defaults;
+        const headers = new Headers(defaults.headers);
         new Headers(options.headers).forEach((value, name) => headers.set(name, value));
         new Headers(init.headers).forEach((value, name) => headers.set(name, value));
         return timeoutFetch(url, {
@@ -171,19 +193,10 @@ export class Datalith {
             redirect: "error",
             signal: options.signal,
             requestTimeout:
-                options.requestTimeout !== undefined
-                    ? options.requestTimeout
-                    : this.#defaults.requestTimeout !== undefined
-                      ? this.#defaults.requestTimeout
-                      : streaming
-                        ? DAY
-                        : SHORT_TIMEOUT,
-            idleTimeout:
-                options.idleTimeout !== undefined
-                    ? options.idleTimeout
-                    : this.#defaults.idleTimeout !== undefined
-                      ? this.#defaults.idleTimeout
-                      : SHORT_TIMEOUT,
+                kind === "control"
+                    ? firstTimeout(options.requestTimeout, defaults.requestTimeout, SHORT_TIMEOUT)
+                    : firstTimeout(options.requestTimeout, defaults.transferTimeout, DAY),
+            idleTimeout: firstTimeout(options.idleTimeout, defaults.idleTimeout, SHORT_TIMEOUT),
         });
     }
 
@@ -227,7 +240,7 @@ export class Datalith {
                     this.#url(path),
                     { method: "POST", headers, body: form.body },
                     options,
-                    true,
+                    "upload",
                 ),
                 202,
                 decodeTask,
@@ -494,7 +507,12 @@ export class Datalith {
         if (options.ifNoneMatch !== undefined) {
             headers.set("if-none-match", options.ifNoneMatch);
         }
-        return this.#request(url, { method: options.method ?? "GET", headers }, options, true);
+        return this.#request(
+            url,
+            { method: options.method ?? "GET", headers },
+            options,
+            "download",
+        );
     }
     /** Returns the service Response; read or cancel its body, even after an HTTP error. */
     getContent(id: string, options: ContentOptions = {}): Promise<Response> {
