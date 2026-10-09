@@ -50,6 +50,9 @@ const SHORT_TIMEOUT = 30_000;
 // The longest delay that `setTimeout` accepts; a longer one becomes 1 ms.
 const MAX_DELAY = 2_147_483_647;
 const MAX_RETRY_DELAY = 30_000;
+// The service checks and stores an upload before it answers, which can take longer than the idle timeout for a large file.
+// Node.js `fetch` also stops waiting for the response after 5 minutes.
+const UPLOAD_RESPONSE_TIMEOUT = 300_000;
 
 export interface RequestOptions {
     headers?: HeadersInit;
@@ -61,6 +64,11 @@ export interface RequestOptions {
      * the limit.
      */
     idleTimeout?: number | null;
+    /**
+     * The longest wait in milliseconds for the response after the request is sent; null removes the
+     * limit.
+     */
+    responseTimeout?: number | null;
 }
 /** Default headers and timeouts for the requests of a client. */
 export interface DatalithOptions {
@@ -74,6 +82,11 @@ export interface DatalithOptions {
     transferTimeout?: number | null;
     /** The longest time in milliseconds without progress, 30 seconds by default. */
     idleTimeout?: number | null;
+    /**
+     * The longest wait in milliseconds for the response after the request is sent; uploads and
+     * imports wait 5 minutes by default, and other requests use `idleTimeout`.
+     */
+    responseTimeout?: number | null;
 }
 export interface MutationOptions extends RequestOptions {
     idempotencyKey?: string;
@@ -257,6 +270,11 @@ export class Datalith {
                     ? firstTimeout(options.requestTimeout, defaults.requestTimeout, SHORT_TIMEOUT)
                     : firstTimeout(options.requestTimeout, defaults.transferTimeout, DAY),
             idleTimeout: firstTimeout(options.idleTimeout, defaults.idleTimeout, SHORT_TIMEOUT),
+            responseTimeout: firstTimeout(
+                options.responseTimeout,
+                defaults.responseTimeout,
+                kind === "upload" ? UPLOAD_RESPONSE_TIMEOUT : undefined,
+            ),
         });
     }
 

@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { buffer } from "node:stream/consumers";
 import { after, before, describe, it } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { Datalith, DatalithError, TaskError, TaskWaitTimeoutError } from "../src/index.ts";
 import type { ExportResult } from "../src/index.ts";
@@ -171,6 +172,10 @@ describe("Datalith client", () => {
             // Like the service, an automatic conversion creates an `upload` task.
             uploadedKind = /"enable_convert_to_\w+":true/u.test(options[1]) ? "upload" : "resource";
             polls = 0;
+            if (request.headers["idempotency-key"] === "slow-answer") {
+                // The service checks and stores the file before it answers.
+                await delay(400);
+            }
             send(response, 202, task("queued", null, uploadedKind));
         } else if (path === "tasks/" + ID && failingPolls > 0) {
             failingPolls--;
@@ -337,6 +342,15 @@ describe("Datalith client", () => {
             ids.push(item.id);
         }
         assert.deepEqual(ids, [ID, SECOND_ID]);
+    });
+
+    it("waits for the service to store an upload after the idle timeout", async () => {
+        const uploaded = await datalith.upload(
+            Buffer.from("Hello"),
+            {},
+            { idempotencyKey: "slow-answer", idleTimeout: 100 },
+        );
+        assert.equal(uploaded.status, "queued");
     });
 
     it("names an upload after its source file", async () => {

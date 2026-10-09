@@ -224,7 +224,9 @@ Set default headers and timeouts in the client constructor, or override them for
 In the constructor, `requestTimeout` limits control requests, such as reading metadata or polling a task, and defaults to 30 seconds.
 `transferTimeout` limits uploads, imports, and downloads, and defaults to 24 hours.
 `idleTimeout` limits the time without progress while sending or receiving, and defaults to 30 seconds.
-For one request, `requestTimeout` and `idleTimeout` override these defaults.
+`responseTimeout` limits the wait for the response after a request is sent.
+Uploads and imports wait up to 5 minutes by default, because the service checks and stores the file before it answers; other requests use `idleTimeout`.
+For one request, `requestTimeout`, `idleTimeout`, and `responseTimeout` override these defaults.
 Use null to turn off a timeout.
 `waitTimeout` limits task waiting separately from the HTTP request timeout.
 
