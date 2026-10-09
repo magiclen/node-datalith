@@ -135,6 +135,7 @@ describe("Datalith client", () => {
     let baseUrl: URL;
     let polls = 0;
     let state = "succeeded";
+    let uploadedKind = "resource";
     let failingPolls = 0;
     let uploadedOptions: unknown;
     let uploadedFile = "";
@@ -166,8 +167,10 @@ describe("Datalith client", () => {
                 );
             assert.ok(content);
             uploadedFile = content[1];
+            // Like the service, an automatic conversion creates an `upload` task.
+            uploadedKind = /"enable_convert_to_\w+":true/u.test(options[1]) ? "upload" : "resource";
             polls = 0;
-            send(response, 202, task());
+            send(response, 202, task("queued", null, uploadedKind));
         } else if (path === "tasks/" + ID && failingPolls > 0) {
             failingPolls--;
             send(response, 503, { error: { code: "http_error", message: "Service Unavailable" } });
@@ -179,6 +182,7 @@ describe("Datalith client", () => {
                 task(
                     polls === 1 ? "running" : state,
                     state === "succeeded" && polls > 1 ? media : null,
+                    uploadedKind,
                 ),
             );
         } else if (path === "tasks/" + ID + "/cancel") {

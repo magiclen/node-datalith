@@ -65,26 +65,42 @@ interface AutomaticOptions {
     image?: ImageOptions;
     audio?: AudioOptions;
 }
-export type UploadOptions = UploadBase &
-    (
-        | (AutomaticOptions & {
-              kind?: "resource";
-              enableConvertToVideo?: false;
-              video?: VideoOptions;
-          })
-        | (AutomaticOptions & {
-              kind?: "resource";
-              enableConvertToVideo: true;
-              video: VideoOptions;
-          })
-        | { kind: "image"; image?: ImageOptions }
-        | { kind: "audio"; audio?: AudioOptions }
-        | { kind: "video"; video: VideoOptions }
+/** Keeps the upload as a resource, or converts it to an enabled kind that matches its contents. */
+export type ResourceUploadOptions = UploadBase &
+    AutomaticOptions & { kind?: "resource" } & (
+        | { enableConvertToVideo?: false; video?: VideoOptions }
+        | { enableConvertToVideo: true; video: VideoOptions }
     );
-export type ProcessOptions =
-    | { kind: "image"; image?: ImageOptions }
-    | { kind: "audio"; audio?: AudioOptions }
-    | { kind: "video"; video: VideoOptions };
+export interface ImageUploadOptions extends UploadBase {
+    kind: "image";
+    image?: ImageOptions;
+}
+export interface AudioUploadOptions extends UploadBase {
+    kind: "audio";
+    audio?: AudioOptions;
+}
+export interface VideoUploadOptions extends UploadBase {
+    kind: "video";
+    video: VideoOptions;
+}
+export type UploadOptions =
+    | ResourceUploadOptions
+    | ImageUploadOptions
+    | AudioUploadOptions
+    | VideoUploadOptions;
+export interface ImageProcessOptions {
+    kind: "image";
+    image?: ImageOptions;
+}
+export interface AudioProcessOptions {
+    kind: "audio";
+    audio?: AudioOptions;
+}
+export interface VideoProcessOptions {
+    kind: "video";
+    video: VideoOptions;
+}
+export type ProcessOptions = ImageProcessOptions | AudioProcessOptions | VideoProcessOptions;
 /** Accepts binary data from memory or a stream, including Node.js Readable. */
 export type UploadSource =
     | Blob

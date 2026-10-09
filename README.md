@@ -201,15 +201,13 @@ const imported = await datalith.waitForTask(
 );
 console.log(imported.result.idMap);
 
-if (video.kind === "video") {
-    const task = await datalith.exportMp4(video.id, video.video.variants[0].id);
-    const completed = await datalith.waitForTask(task);
-    const response = await datalith.getArtifact(completed.id);
-    if (!response.ok) {
-        throw await DatalithError.fromResponse(response);
-    }
-    await writeFile("./video.mp4", new Uint8Array(await response.arrayBuffer()));
+const task = await datalith.exportMp4(video.id, video.video.variants[0].id);
+const completed = await datalith.waitForTask(task);
+const response = await datalith.getArtifact(completed.id);
+if (!response.ok) {
+    throw await DatalithError.fromResponse(response);
 }
+await writeFile("./video.mp4", new Uint8Array(await response.arrayBuffer()));
 ```
 
 The example reads small files into memory; stream large files to storage.

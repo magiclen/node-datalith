@@ -14,19 +14,29 @@ import {
 import { DatalithError, DatalithProtocolError, TaskError, TaskWaitTimeoutError } from "./errors.ts";
 import { multipart } from "./multipart.ts";
 import type {
+    AudioProcessOptions,
+    AudioUploadOptions,
     Capabilities,
     ContentFormat,
     HlsAudio,
+    HlsVideoMedia,
+    ImageMedia,
+    ImageProcessOptions,
+    ImageUploadOptions,
     Media,
     MediaKind,
     Page,
     PlaybackSession,
     ProcessOptions,
+    ResourceUploadOptions,
+    StandaloneAudioMedia,
     SuccessfulTask,
     Task,
     TaskKind,
     UploadOptions,
     UploadSource,
+    VideoProcessOptions,
+    VideoUploadOptions,
 } from "./types.ts";
 
 export * from "./errors.ts";
@@ -124,6 +134,17 @@ const expectKind = <K extends TaskKind>(task: Task, kinds: readonly K[]): Task<K
         });
     }
     return task;
+};
+// The service creates an `upload` task when any automatic conversion is enabled.
+const uploadKind = (processing: UploadOptions): MediaKind | "upload" => {
+    if (processing.kind === "image" || processing.kind === "audio" || processing.kind === "video") {
+        return processing.kind;
+    }
+    return processing.enableConvertToImage === true ||
+        processing.enableConvertToAudio === true ||
+        processing.enableConvertToVideo === true
+        ? "upload"
+        : "resource";
 };
 const isSuccessful = (task: Task): task is SuccessfulTask =>
     task.status === "succeeded" && task.result !== null;
@@ -264,17 +285,38 @@ export class Datalith {
         }
     }
 
+    upload(
+        source: UploadSource,
+        processing: ImageUploadOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"image">>;
+    upload(
+        source: UploadSource,
+        processing: AudioUploadOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"audio">>;
+    upload(
+        source: UploadSource,
+        processing: VideoUploadOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"video">>;
+    upload(
+        source: UploadSource,
+        processing?: ResourceUploadOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"resource" | "upload">>;
+    upload(
+        source: UploadSource,
+        processing?: UploadOptions,
+        options?: MutationOptions,
+    ): Promise<Task<MediaKind | "upload">>;
     async upload(
         source: UploadSource,
         processing: UploadOptions = {},
         options: MutationOptions = {},
     ): Promise<Task<MediaKind | "upload">> {
         return expectKind(await this.#upload("uploads", source, processing, options), [
-            "resource",
-            "image",
-            "audio",
-            "video",
-            "upload",
+            uploadKind(processing),
         ]);
     }
     async importMedia(
@@ -292,6 +334,26 @@ export class Datalith {
             ["export"],
         );
     }
+    processMedia(
+        id: string,
+        processing: ImageProcessOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"image">>;
+    processMedia(
+        id: string,
+        processing: AudioProcessOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"audio">>;
+    processMedia(
+        id: string,
+        processing: VideoProcessOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"video">>;
+    processMedia(
+        id: string,
+        processing: ProcessOptions,
+        options?: MutationOptions,
+    ): Promise<Task<"image" | "audio" | "video">>;
     async processMedia(
         id: string,
         processing: ProcessOptions,
@@ -299,7 +361,7 @@ export class Datalith {
     ): Promise<Task<"image" | "audio" | "video">> {
         return expectKind(
             await this.#submit("media/" + segment(id) + "/tasks", processing, options),
-            ["image", "audio", "video"],
+            [processing.kind],
         );
     }
     async exportMp4(
@@ -381,8 +443,17 @@ export class Datalith {
         try {
             while (true) {
                 signal.throwIfAborted();
-                // oxlint-disable-next-line eslint/no-await-in-loop -- Wait for each poll request to finish.
-                task ??= await this.#pollTask(id, { ...options, signal }, interval, retries);
+                if (task === null) {
+                    // oxlint-disable-next-line eslint/no-await-in-loop -- Wait for each poll request to finish.
+                    const polled = await this.#pollTask(
+                        id,
+                        { ...options, signal },
+                        interval,
+                        retries,
+                    );
+                    // A task keeps its kind, which the return type relies on.
+                    task = typeof input === "string" ? polled : expectKind(polled, [input.kind]);
+                }
                 options.onProgress?.(task);
                 signal.throwIfAborted();
                 if (isSuccessful(task)) {
@@ -436,6 +507,26 @@ export class Datalith {
         }
     }
 
+    uploadAndWait(
+        source: UploadSource,
+        processing: ImageUploadOptions,
+        options?: MutationOptions & WaitOptions,
+    ): Promise<ImageMedia>;
+    uploadAndWait(
+        source: UploadSource,
+        processing: AudioUploadOptions,
+        options?: MutationOptions & WaitOptions,
+    ): Promise<StandaloneAudioMedia>;
+    uploadAndWait(
+        source: UploadSource,
+        processing: VideoUploadOptions,
+        options?: MutationOptions & WaitOptions,
+    ): Promise<HlsVideoMedia>;
+    uploadAndWait(
+        source: UploadSource,
+        processing?: UploadOptions,
+        options?: MutationOptions & WaitOptions,
+    ): Promise<Media>;
     async uploadAndWait(
         source: UploadSource,
         processing: UploadOptions = {},
