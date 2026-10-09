@@ -35,6 +35,8 @@ export { TimeoutError, isAbortError, isTimeoutError } from "fetch-helper-x";
 
 const DAY = 86_400_000;
 const SHORT_TIMEOUT = 30_000;
+// The longest delay that `setTimeout` accepts; a longer one becomes 1 ms.
+const MAX_DELAY = 2_147_483_647;
 
 export interface RequestOptions {
     headers?: HeadersInit;
@@ -339,12 +341,12 @@ export class Datalith {
         const id = typeof input === "string" ? input : input.id;
         const interval = options.pollInterval ?? 1000;
         const timeout = options.waitTimeout === undefined ? DAY : options.waitTimeout;
-        if (!Number.isFinite(interval) || interval <= 0) {
-            throw new RangeError("pollInterval must be positive.");
+        if (!Number.isFinite(interval) || interval <= 0 || interval > MAX_DELAY) {
+            throw new RangeError("pollInterval must be greater than 0 and at most 2147483647.");
         }
         if (
             timeout !== null &&
-            (!Number.isInteger(timeout) || timeout < 0 || timeout > 2_147_483_647)
+            (!Number.isInteger(timeout) || timeout < 0 || timeout > MAX_DELAY)
         ) {
             throw new RangeError("Invalid waitTimeout.");
         }
